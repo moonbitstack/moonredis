@@ -60,6 +60,7 @@ jobs:
           redis-server /tmp/sentinel.conf --sentinel --daemonize yes --dir /tmp
           sleep 1
           redis-cli -p 26379 sentinel get-master-addr-by-name mymaster
+          echo "MOONREDIS_LIVE=1" >> "$GITHUB_ENV"
 
       - name: moon check
         run: moon check --target all --deny-warn

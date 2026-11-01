@@ -168,6 +168,18 @@ match sub.next() {
 command's keys colocate. `SentinelClient` resolves a master address by asking sentinels in
 turn.
 
+## Service discovery
+
+`moonredis/sd` implements the `moonsd` contract on Redis. An endpoint is a key that expires, so an instance that stops renewing leaves by itself. Redis reports expiry only on a best-effort channel, so a watcher reads the service again every `poll` milliseconds.
+
+```moonbit
+let registry = @sd.Registry::new(client)
+group.spawn_bg(() => @moonsd.hold(registry, "greeter", @moonsd.Endpoint::new("10.0.0.1", 12000)))
+let endpoints = registry.resolve("greeter")
+```
+
+`Registry::new` takes `prefix`, default `moonsd`, and `poll`, default 1000. Any number of tasks may share one registry. Give it a client of its own: its lock orders its own commands, not those of anything else on that connection. A service's keys share a hash tag, so they stay in one cluster slot.
+
 ## Pool and retries
 
 `@socket.Pool` reuses idle connections up to `PoolOptions.max_idle`. `RetryConn` retries a
@@ -187,7 +199,8 @@ immediately; `backoff_delay`/`should_retry` expose the policy.
 The codec and command surface are tested against `FakeConn` with no network, so they run on
 every backend. Integration tests in `src/integration` dial a live redis and skip when none is
 listening. CI starts a standalone redis, a six-node cluster and a sentinel, and runs the
-integration tests against them.
+integration tests against them. The service-discovery tests run `moonsd`'s conformance check,
+and with `MOONREDIS_LIVE` set, as in CI, a missing server fails them instead of skipping them.
 
 ## Licence
 

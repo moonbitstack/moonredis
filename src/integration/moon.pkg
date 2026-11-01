@@ -5,8 +5,12 @@
 import {
   "moonbitstack/moonredis",
   "moonbitstack/moonredis/resp",
+  "moonbitstack/moonredis/sd",
   "moonbitstack/moonredis/socket",
+  "moonbitstack/moonsd",
+  "moonbitstack/moonsd/conformance",
   "moonbitlang/async",
+  "moonbitlang/core/env",
 } for "test"
 
 supported_targets = "native"

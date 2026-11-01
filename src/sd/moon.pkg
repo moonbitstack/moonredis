@@ -1,0 +1,10 @@
+// `moonsd` on Redis: endpoints as expiring keys.
+import {
+  "moonbitstack/moonredis",
+  "moonbitstack/moonsd",
+  "moonbitlang/async",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
+}
+
+supported_targets = "native+wasm"

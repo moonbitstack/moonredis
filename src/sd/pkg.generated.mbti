@@ -1,0 +1,35 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/moonredis/sd"
+
+import {
+  "moonbitlang/async",
+  "moonbitstack/moonredis",
+  "moonbitstack/moonsd",
+}
+
+// Values
+pub let poll : Int32
+
+pub let prefix : String
+
+// Errors
+
+// Types and methods
+pub struct Registry {
+  client : @moonredis.Client
+  prefix : String
+  poll : Int32
+  lock : @async.Mutex
+}
+pub async fn Registry::deregister(Self, @moonsd.Lease) -> Unit
+pub fn Registry::new(@moonredis.Client, prefix? : String, poll? : Int32) -> Self
+pub async fn Registry::register(Self, String, @moonsd.Endpoint, Int32) -> @moonsd.Lease
+pub async fn Registry::renew(Self, @moonsd.Lease) -> Unit
+pub async fn Registry::resolve(Self, String) -> Array[@moonsd.Endpoint]
+pub async fn Registry::watch(Self, String) -> &@moonsd.Watcher
+pub impl @moonsd.Discovery for Registry
+pub impl @moonsd.Registrar for Registry
+
+// Type aliases
+
+// Traits
