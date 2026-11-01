@@ -1,13 +1,425 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "moonbitstack/moonredis"
 
+import {
+  "moonbitlang/core/debug",
+  "moonbitstack/moonredis/resp",
+  "moonbitstack/moontls/tls",
+}
+
 // Values
+pub fn arg_bytes(Bytes) -> Bytes
+
+pub fn arg_double(Double) -> Bytes
+
+pub fn arg_int(Int32) -> Bytes
+
+pub fn arg_int64(Int64) -> Bytes
+
+pub fn arg_string(String) -> Bytes
+
+pub fn backoff_delay(Int32, RetryOptions) -> Int64
+
+pub let client_default : ClientOptions
+
+pub fn crc16(Bytes) -> Int32
+
+pub fn decode_cluster_slots(@resp.RespValue) -> ClusterTopology raise RedisError
+
+pub fn expect_array(@resp.RespValue) -> Array[@resp.RespValue] raise RedisError
+
+pub fn expect_bool(@resp.RespValue) -> Bool raise RedisError
+
+pub fn expect_bytes(@resp.RespValue) -> Bytes? raise RedisError
+
+pub fn expect_double(@resp.RespValue) -> Double raise RedisError
+
+pub fn expect_int64(@resp.RespValue) -> Int64 raise RedisError
+
+pub fn expect_map(@resp.RespValue) -> Array[(@resp.RespValue, @resp.RespValue)] raise RedisError
+
+pub fn expect_string(@resp.RespValue) -> String? raise RedisError
+
+pub fn expect_string_value(@resp.RespValue) -> String raise RedisError
+
 pub fn greet(StringView) -> String
 
+pub fn hash_slot(String) -> Int32
+
+pub fn is_cluster_down(String) -> Bool
+
+pub fn is_noscript(String) -> Bool
+
+pub let pool_default : PoolOptions
+
+pub fn protocol_version(Protocol) -> Int32
+
+pub fn push_some(Array[Bytes], Bytes, Bytes?) -> Unit
+
+pub fn redirect(String) -> (Int32, String)?
+
+pub fn reply_error(@resp.RespValue) -> RedisError
+
+pub let retry_default : RetryOptions
+
+pub fn same_slot(Array[String]) -> Bool
+
+pub fn should_retry(RedisError, Int32, RetryOptions) -> Bool
+
+pub fn status_ok(@resp.RespValue) -> Unit raise RedisError
+
+pub let tracking_default : TrackingOptions
+
 // Errors
+pub(all) suberror RedisError {
+  Reply(String)
+  Connection(String)
+  Protocol(String)
+  Closed
+} derive(Eq, @debug.Debug)
+pub fn RedisError::equal(Self, Self) -> Bool
+pub fn RedisError::not_equal(Self, Self) -> Bool
+pub fn RedisError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+pub struct Client {
+  conn : &RedisConn
+}
+pub async fn Client::append(Self, String, String) -> Int64 raise RedisError
+pub async fn Client::auth(Self, String) -> Unit raise RedisError
+pub async fn Client::auth_user(Self, String, String) -> Unit raise RedisError
+pub async fn Client::bgrewriteaof(Self) -> String raise RedisError
+pub async fn Client::bgsave(Self) -> String raise RedisError
+pub async fn Client::bitcount(Self, String, start? : Int32, end? : Int32) -> Int64 raise RedisError
+pub async fn Client::bitop(Self, String, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::bitpos(Self, String, Int32, start? : Int32, end? : Int32) -> Int64 raise RedisError
+pub async fn Client::blmove(Self, String, String, String, String, Int32) -> Bytes? raise RedisError
+pub async fn Client::blpop(Self, Array[String], Int32) -> (String, Bytes)? raise RedisError
+pub async fn Client::brpop(Self, Array[String], Int32) -> (String, Bytes)? raise RedisError
+pub async fn Client::brpoplpush(Self, String, String, Int32) -> Bytes? raise RedisError
+pub async fn Client::bzpopmax(Self, Array[String], Int32) -> (String, String, Double)? raise RedisError
+pub async fn Client::bzpopmin(Self, Array[String], Int32) -> (String, String, Double)? raise RedisError
+pub async fn Client::client_getname(Self) -> String? raise RedisError
+pub async fn Client::client_id(Self) -> Int64 raise RedisError
+pub async fn Client::client_kill(Self, Array[String]) -> Unit raise RedisError
+pub async fn Client::client_setname(Self, String) -> Unit raise RedisError
+pub async fn Client::cluster_slots(Self) -> @resp.RespValue raise RedisError
+pub async fn Client::command(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
+pub async fn Client::command_count(Self) -> Int64 raise RedisError
+pub async fn Client::config_get(Self, String) -> Array[(String, String)] raise RedisError
+pub async fn Client::config_resetstat(Self) -> Unit raise RedisError
+pub async fn Client::config_rewrite(Self) -> Unit raise RedisError
+pub async fn Client::config_set(Self, String, String) -> Unit raise RedisError
+pub async fn Client::copy(Self, String, String, db? : Int32, replace? : Bool) -> Bool raise RedisError
+pub async fn Client::dbsize(Self) -> Int64 raise RedisError
+pub async fn Client::decr(Self, String) -> Int64 raise RedisError
+pub async fn Client::decrby(Self, String, Int64) -> Int64 raise RedisError
+pub async fn Client::del(Self, Array[String]) -> Int64 raise RedisError
+pub async fn Client::discard(Self) -> Unit raise RedisError
+pub async fn Client::dump(Self, String) -> Bytes? raise RedisError
+pub async fn Client::echo(Self, String) -> Bytes raise RedisError
+pub async fn Client::eval(Self, String, Array[String], Array[String]) -> @resp.RespValue raise RedisError
+pub async fn Client::evalsha(Self, String, Array[String], Array[String]) -> @resp.RespValue raise RedisError
+pub async fn Client::exists(Self, Array[String]) -> Int64 raise RedisError
+pub async fn Client::expire(Self, String, Int64) -> Bool raise RedisError
+pub async fn Client::expireat(Self, String, Int64) -> Bool raise RedisError
+pub async fn Client::flushall(Self, sync? : Bool) -> Unit raise RedisError
+pub async fn Client::flushdb(Self, sync? : Bool) -> Unit raise RedisError
+pub async fn Client::function_call(Self, String, Array[String], Array[String]) -> @resp.RespValue raise RedisError
+pub async fn Client::function_delete(Self, String) -> Unit raise RedisError
+pub async fn Client::function_flush(Self) -> Unit raise RedisError
+pub async fn Client::function_load(Self, String, replace? : Bool) -> String raise RedisError
+pub async fn Client::geoadd(Self, String, Array[(String, Double, Double)]) -> Int64 raise RedisError
+pub async fn Client::geodist(Self, String, String, String, unit? : String) -> Double? raise RedisError
+pub async fn Client::geohash(Self, String, Array[String]) -> Array[String?] raise RedisError
+pub async fn Client::geopos(Self, String, Array[String]) -> Array[(Double, Double)?] raise RedisError
+pub async fn Client::geosearch(Self, String, from_member? : String, longitude? : Double, latitude? : Double, radius? : Double, width? : Double, height? : Double, String, count? : Int32, asc? : Bool, desc? : Bool) -> Array[String] raise RedisError
+pub async fn Client::get(Self, String) -> Bytes? raise RedisError
+pub async fn Client::getbit(Self, String, Int64) -> Int64 raise RedisError
+pub async fn Client::getdel(Self, String) -> Bytes? raise RedisError
+pub async fn Client::getex(Self, String, ex? : Int64, px? : Int64, exat? : Int64, pxat? : Int64, persist? : Bool) -> Bytes? raise RedisError
+pub async fn Client::getrange(Self, String, Int32, Int32) -> Bytes raise RedisError
+pub async fn Client::hdel(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::hexists(Self, String, String) -> Bool raise RedisError
+pub async fn Client::hget(Self, String, String) -> Bytes? raise RedisError
+pub async fn Client::hgetall(Self, String) -> Array[(String, String)] raise RedisError
+pub async fn Client::hincrby(Self, String, String, Int64) -> Int64 raise RedisError
+pub async fn Client::hincrbyfloat(Self, String, String, Double) -> Double raise RedisError
+pub async fn Client::hkeys(Self, String) -> Array[String] raise RedisError
+pub async fn Client::hlen(Self, String) -> Int64 raise RedisError
+pub async fn Client::hmget(Self, String, Array[String]) -> Array[Bytes?] raise RedisError
+pub async fn Client::hmset(Self, String, Array[(String, String)]) -> Unit raise RedisError
+pub async fn Client::hrandfield(Self, String, count? : Int32, withvalues? : Bool) -> Array[String] raise RedisError
+pub async fn Client::hscan(Self, String, String, pattern? : String, count? : Int32) -> (String, Array[(String, String)]) raise RedisError
+pub async fn Client::hset(Self, String, Array[(String, String)]) -> Int64 raise RedisError
+pub async fn Client::hsetnx(Self, String, String, String) -> Bool raise RedisError
+pub async fn Client::hstrlen(Self, String, String) -> Int64 raise RedisError
+pub async fn Client::hvals(Self, String) -> Array[String] raise RedisError
+pub async fn Client::incr(Self, String) -> Int64 raise RedisError
+pub async fn Client::incrby(Self, String, Int64) -> Int64 raise RedisError
+pub async fn Client::info(Self, section? : String) -> String raise RedisError
+pub async fn Client::keys(Self, String) -> Array[String] raise RedisError
+pub async fn Client::lastsave(Self) -> Int64 raise RedisError
+pub async fn Client::lindex(Self, String, Int32) -> Bytes? raise RedisError
+pub async fn Client::linsert(Self, String, String, String, String) -> Int64 raise RedisError
+pub async fn Client::llen(Self, String) -> Int64 raise RedisError
+pub async fn Client::lmove(Self, String, String, String, String) -> Bytes? raise RedisError
+pub async fn Client::lpop(Self, String) -> Bytes? raise RedisError
+pub async fn Client::lpopn(Self, String, Int32) -> Array[Bytes] raise RedisError
+pub async fn Client::lpush(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::lpushx(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::lrange(Self, String, Int32, Int32) -> Array[Bytes] raise RedisError
+pub async fn Client::lrem(Self, String, Int32, String) -> Int64 raise RedisError
+pub async fn Client::lset(Self, String, Int32, String) -> Unit raise RedisError
+pub async fn Client::ltrim(Self, String, Int32, Int32) -> Unit raise RedisError
+pub async fn Client::mget(Self, Array[String]) -> Array[Bytes?] raise RedisError
+pub async fn Client::move_(Self, String, Int32) -> Bool raise RedisError
+pub async fn Client::mset(Self, Array[(String, String)]) -> Unit raise RedisError
+pub fn Client::new(&RedisConn) -> Self
+pub async fn Client::object_encoding(Self, String) -> String raise RedisError
+pub async fn Client::object_idletime(Self, String) -> Int64 raise RedisError
+pub async fn Client::object_refcount(Self, String) -> Int64 raise RedisError
+pub async fn Client::persist(Self, String) -> Bool raise RedisError
+pub async fn Client::pexpire(Self, String, Int64) -> Bool raise RedisError
+pub async fn Client::pexpireat(Self, String, Int64) -> Bool raise RedisError
+pub async fn Client::pfadd(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::pfcount(Self, Array[String]) -> Int64 raise RedisError
+pub async fn Client::pfmerge(Self, String, Array[String]) -> Unit raise RedisError
+pub async fn Client::ping(Self) -> String raise RedisError
+pub async fn Client::ping_message(Self, String) -> String raise RedisError
+pub async fn Client::psetex(Self, String, Int64, String) -> Unit raise RedisError
+pub async fn Client::psubscribe(Self, Array[String]) -> Unit raise RedisError
+pub async fn Client::pttl(Self, String) -> Int64 raise RedisError
+pub async fn Client::publish(Self, String, String) -> Int64 raise RedisError
+pub async fn Client::punsubscribe(Self, patterns? : Array[String]) -> Unit raise RedisError
+pub async fn Client::randomkey(Self) -> String? raise RedisError
+pub async fn Client::rename(Self, String, String) -> Unit raise RedisError
+pub async fn Client::renamenx(Self, String, String) -> Bool raise RedisError
+pub async fn Client::replicaof(Self, String, Int32) -> Unit raise RedisError
+pub async fn Client::replicaof_noone(Self) -> Unit raise RedisError
+pub async fn Client::restore(Self, String, Int64, Bytes, replace? : Bool, absttl? : Bool) -> Unit raise RedisError
+pub async fn Client::rpop(Self, String) -> Bytes? raise RedisError
+pub async fn Client::rpoplpush(Self, String, String) -> Bytes? raise RedisError
+pub async fn Client::rpopn(Self, String, Int32) -> Array[Bytes] raise RedisError
+pub async fn Client::rpush(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::rpushx(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::sadd(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::save(Self) -> Unit raise RedisError
+pub async fn Client::scan(Self, String, pattern? : String, count? : Int32, kind? : String) -> (String, Array[String]) raise RedisError
+pub async fn Client::scard(Self, String) -> Int64 raise RedisError
+pub async fn Client::script_exists(Self, Array[String]) -> Array[Bool] raise RedisError
+pub async fn Client::script_flush(Self) -> Unit raise RedisError
+pub async fn Client::script_load(Self, String) -> String raise RedisError
+pub async fn Client::sdiff(Self, Array[String]) -> Array[String] raise RedisError
+pub async fn Client::sdiffstore(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::select(Self, Int32) -> Unit raise RedisError
+pub async fn Client::sentinel(Self, Array[String]) -> @resp.RespValue raise RedisError
+pub async fn Client::sentinel_get_master_addr_by_name(Self, String) -> (String, Int32)? raise RedisError
+pub async fn Client::set(Self, String, String, ex? : Int64, px? : Int64, nx? : Bool, xx? : Bool, keepttl? : Bool) -> Bool raise RedisError
+pub async fn Client::set_get(Self, String, String) -> Bytes? raise RedisError
+pub async fn Client::setbit(Self, String, Int64, Int32) -> Int64 raise RedisError
+pub async fn Client::setex(Self, String, Int64, String) -> Unit raise RedisError
+pub async fn Client::setnx(Self, String, String) -> Bool raise RedisError
+pub async fn Client::setrange(Self, String, Int32, String) -> Int64 raise RedisError
+pub async fn Client::shutdown(Self, save? : Bool) -> Unit raise RedisError
+pub async fn Client::sinter(Self, Array[String]) -> Array[String] raise RedisError
+pub async fn Client::sinterstore(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::sismember(Self, String, String) -> Bool raise RedisError
+pub async fn Client::slowlog_get(Self, count? : Int32) -> Array[@resp.RespValue] raise RedisError
+pub async fn Client::slowlog_len(Self) -> Int64 raise RedisError
+pub async fn Client::slowlog_reset(Self) -> Unit raise RedisError
+pub async fn Client::smembers(Self, String) -> Array[String] raise RedisError
+pub async fn Client::smove(Self, String, String, String) -> Bool raise RedisError
+pub async fn Client::spop(Self, String) -> String? raise RedisError
+pub async fn Client::spopn(Self, String, Int32) -> Array[String] raise RedisError
+pub async fn Client::spublish(Self, String, String) -> Int64 raise RedisError
+pub async fn Client::srandmember(Self, String) -> String? raise RedisError
+pub async fn Client::srandmembern(Self, String, Int32) -> Array[String] raise RedisError
+pub async fn Client::srem(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::sscan(Self, String, String, pattern? : String, count? : Int32) -> (String, Array[String]) raise RedisError
+pub async fn Client::ssubscribe(Self, Array[String]) -> Unit raise RedisError
+pub async fn Client::strlen(Self, String) -> Int64 raise RedisError
+pub async fn Client::subscribe(Self, Array[String]) -> Unit raise RedisError
+pub async fn Client::sunion(Self, Array[String]) -> Array[String] raise RedisError
+pub async fn Client::sunionstore(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::sunsubscribe(Self, channels? : Array[String]) -> Unit raise RedisError
+pub async fn Client::swapdb(Self, Int32, Int32) -> Unit raise RedisError
+pub async fn Client::time_(Self) -> (Int64, Int64) raise RedisError
+pub async fn Client::touch(Self, Array[String]) -> Int64 raise RedisError
+pub async fn Client::ttl(Self, String) -> Int64 raise RedisError
+pub async fn Client::type_(Self, String) -> String raise RedisError
+pub async fn Client::unlink(Self, Array[String]) -> Int64 raise RedisError
+pub async fn Client::unsubscribe(Self, channels? : Array[String]) -> Unit raise RedisError
+pub async fn Client::unwatch(Self) -> Unit raise RedisError
+pub async fn Client::watch(Self, Array[String]) -> Unit raise RedisError
+pub async fn Client::xack(Self, String, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::xadd(Self, String, String, Array[(String, String)], maxlen? : Int64, approx? : Bool) -> String raise RedisError
+pub async fn Client::xdel(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::xgroup_create(Self, String, String, String, mkstream? : Bool) -> Unit raise RedisError
+pub async fn Client::xgroup_createconsumer(Self, String, String, String) -> Bool raise RedisError
+pub async fn Client::xgroup_delconsumer(Self, String, String, String) -> Int64 raise RedisError
+pub async fn Client::xgroup_destroy(Self, String, String) -> Bool raise RedisError
+pub async fn Client::xlen(Self, String) -> Int64 raise RedisError
+pub async fn Client::xpending(Self, String, String) -> PendingSummary raise RedisError
+pub async fn Client::xrange(Self, String, String, String, count? : Int32) -> Array[StreamEntry] raise RedisError
+pub async fn Client::xread(Self, Array[(String, String)], count? : Int32, block? : Int64) -> Array[(String, Array[StreamEntry])]? raise RedisError
+pub async fn Client::xreadgroup(Self, String, String, Array[(String, String)], count? : Int32, block? : Int64, noack? : Bool) -> Array[(String, Array[StreamEntry])]? raise RedisError
+pub async fn Client::xrevrange(Self, String, String, String, count? : Int32) -> Array[StreamEntry] raise RedisError
+pub async fn Client::xtrim(Self, String, Int64, approx? : Bool) -> Int64 raise RedisError
+pub async fn Client::zadd(Self, String, Array[(String, Double)], nx? : Bool, xx? : Bool, ch? : Bool) -> Int64 raise RedisError
+pub async fn Client::zcard(Self, String) -> Int64 raise RedisError
+pub async fn Client::zcount(Self, String, String, String) -> Int64 raise RedisError
+pub async fn Client::zincrby(Self, String, Double, String) -> Double raise RedisError
+pub async fn Client::zinterstore(Self, String, Array[String], weights? : Array[Double], aggregate? : String) -> Int64 raise RedisError
+pub async fn Client::zmscore(Self, String, Array[String]) -> Array[Double?] raise RedisError
+pub async fn Client::zpopmax(Self, String, count? : Int32) -> Array[(String, Double)] raise RedisError
+pub async fn Client::zpopmin(Self, String, count? : Int32) -> Array[(String, Double)] raise RedisError
+pub async fn Client::zrandmember(Self, String, count? : Int32, withscores? : Bool) -> Array[(String, Double)] raise RedisError
+pub async fn Client::zrange(Self, String, Int32, Int32) -> Array[String] raise RedisError
+pub async fn Client::zrange_scores(Self, String, Int32, Int32) -> Array[(String, Double)] raise RedisError
+pub async fn Client::zrangebyscore(Self, String, String, String, offset? : Int32, count? : Int32) -> Array[String] raise RedisError
+pub async fn Client::zrangebyscore_scores(Self, String, String, String, offset? : Int32, count? : Int32) -> Array[(String, Double)] raise RedisError
+pub async fn Client::zrank(Self, String, String) -> Int64? raise RedisError
+pub async fn Client::zrem(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::zremrangebyrank(Self, String, Int32, Int32) -> Int64 raise RedisError
+pub async fn Client::zremrangebyscore(Self, String, String, String) -> Int64 raise RedisError
+pub async fn Client::zrevrange(Self, String, Int32, Int32) -> Array[String] raise RedisError
+pub async fn Client::zrevrange_scores(Self, String, Int32, Int32) -> Array[(String, Double)] raise RedisError
+pub async fn Client::zrevrangebyscore(Self, String, String, String, offset? : Int32, count? : Int32) -> Array[String] raise RedisError
+pub async fn Client::zrevrangebyscore_scores(Self, String, String, String, offset? : Int32, count? : Int32) -> Array[(String, Double)] raise RedisError
+pub async fn Client::zrevrank(Self, String, String) -> Int64? raise RedisError
+pub async fn Client::zscan(Self, String, String, pattern? : String, count? : Int32) -> (String, Array[String]) raise RedisError
+pub async fn Client::zscore(Self, String, String) -> Double? raise RedisError
+pub async fn Client::zunionstore(Self, String, Array[String], weights? : Array[Double], aggregate? : String) -> Int64 raise RedisError
+
+pub struct ClientOptions {
+  host : String
+  port : Int32
+  username : String?
+  password : String?
+  db : Int32
+  protocol : Protocol
+  tls : @tls.Client?
+  connect_timeout : Int64
+  read_timeout : Int64
+  write_timeout : Int64
+  pool : PoolOptions
+  retry : RetryOptions
+  tracking : TrackingOptions
+}
+pub fn ClientOptions::at(String, Int32) -> Self
+pub fn ClientOptions::with_auth(Self, String?, String?) -> Self
+pub fn ClientOptions::with_db(Self, Int32) -> Self
+
+pub struct ClusterClient {
+  nodes : Array[(String, &RedisConn)]
+  mut topology : ClusterTopology
+}
+pub async fn ClusterClient::command(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
+pub fn ClusterClient::new(Array[(String, &RedisConn)], ClusterTopology) -> Self
+pub fn ClusterClient::set_topology(Self, ClusterTopology) -> Unit
+
+pub struct ClusterSlot {
+  start : Int32
+  end : Int32
+  node : String
+}
+pub fn ClusterSlot::new(Int32, Int32, String) -> Self
+
+pub struct ClusterTopology {
+  slots : Array[ClusterSlot]
+}
+pub fn ClusterTopology::new(Array[ClusterSlot]) -> Self
+pub fn ClusterTopology::node_for_slot(Self, Int32) -> String?
+
+pub struct FakeConn {
+  queue : Array[@resp.RespValue]
+  mut at : Int32
+  run : (Array[Bytes]) -> @resp.RespValue
+}
+pub async fn FakeConn::execute(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
+pub fn FakeConn::handler((Array[Bytes]) -> @resp.RespValue) -> Self
+pub fn FakeConn::new(Array[@resp.RespValue]) -> Self
+pub impl RedisConn for FakeConn
+
+pub struct Message {
+  kind : String
+  channel : String
+  payload : Bytes
+  pattern : String?
+  count : Int64
+}
+pub fn Message::parse(@resp.RespValue) -> Self?
+
+pub struct PendingSummary {
+  count : Int64
+  min_id : String
+  max_id : String
+  consumers : Array[(String, Int64)]
+}
+
+pub struct Pipeline {
+  conn : &RedisConn
+  queue : Array[Array[Bytes]]
+  mut transaction : Bool
+}
+pub fn Pipeline::add(Self, Array[Bytes]) -> Unit
+pub async fn Pipeline::execute(Self) -> Array[@resp.RespValue] raise RedisError
+pub fn Pipeline::multi(Self) -> Unit
+pub fn Pipeline::new(&RedisConn) -> Self
+
+pub struct PoolOptions {
+  max_idle : Int32
+  max_active : Int32
+  min_idle : Int32
+  idle_timeout : Int64
+  health_check : Bool
+}
+
+pub enum Protocol {
+  Resp2
+  Resp3
+}
+
+pub struct RetryConn {
+  inner : &RedisConn
+  retry : RetryOptions
+}
+pub async fn RetryConn::execute(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
+pub fn RetryConn::new(&RedisConn, RetryOptions) -> Self
+pub impl RedisConn for RetryConn
+
+pub struct RetryOptions {
+  attempts : Int32
+  base_delay : Int64
+  max_delay : Int64
+  level : Int32
+  jitter : Bool
+}
+
+pub struct SentinelClient {
+  sentinels : Array[&RedisConn]
+}
+pub fn SentinelClient::new(Array[&RedisConn]) -> Self
+pub async fn SentinelClient::resolve(Self, String) -> String raise RedisError
+
+pub struct StreamEntry {
+  id : String
+  fields : Array[(String, String)]
+}
+
+pub struct TrackingOptions {
+  enabled : Bool
+  bcast : Bool
+  optin : Bool
+  optout : Bool
+  noloop : Bool
+  redirect : Int64?
+}
 
 // Type aliases
 
 // Traits
+pub(open) trait RedisConn {
+  async fn execute(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
+}

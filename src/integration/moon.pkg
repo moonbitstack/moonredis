@@ -1,0 +1,12 @@
+// Integration tests against a live redis: they dial 127.0.0.1:6379 and, when nothing is
+// listening, return early so the suite still passes without a server. CI starts a redis for
+// them. They are native-only because they open real sockets. The package holds only tests,
+// so its imports are test-only.
+import {
+  "moonbitstack/moonredis",
+  "moonbitstack/moonredis/resp",
+  "moonbitstack/moonredis/socket",
+  "moonbitlang/async",
+} for "test"
+
+supported_targets = "native"

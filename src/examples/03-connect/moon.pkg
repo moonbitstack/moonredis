@@ -1,0 +1,11 @@
+// A real connection over a socket: dial, then SET/GET. Native-only; needs a redis.
+pkgtype(kind: "executable")
+
+supported_targets = "+native"
+
+import {
+  "moonbitstack/moonredis",
+  "moonbitstack/moonredis/socket",
+  "moonbitlang/async",
+  "moonbitlang/core/encoding/utf8",
+}

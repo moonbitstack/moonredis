@@ -1,0 +1,42 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/moonredis/socket"
+
+import {
+  "moonbitstack/moonnet/tcp",
+  "moonbitstack/moonredis",
+  "moonbitstack/moonredis/resp",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct Connection {
+  conn : @tcp.Conn
+  mut pushes : Array[@resp.RespValue]
+}
+pub async fn Connection::connect(@moonredis.ClientOptions) -> Self raise @moonredis.RedisError
+pub async fn Connection::execute(Self, Array[Bytes]) -> @resp.RespValue raise @moonredis.RedisError
+pub fn Connection::take_pushes(Self) -> Array[@resp.RespValue]
+pub impl @moonredis.RedisConn for Connection
+
+pub struct Pool {
+  options : @moonredis.ClientOptions
+  idle : Array[Connection]
+}
+pub async fn Pool::get(Self) -> Connection raise @moonredis.RedisError
+pub fn Pool::idle_count(Self) -> Int32
+pub fn Pool::new(@moonredis.ClientOptions) -> Self
+pub fn Pool::put(Self, Connection) -> Unit
+
+pub struct Subscription {
+  conn : Connection
+}
+pub async fn Subscription::next(Self) -> @moonredis.Message? raise @moonredis.RedisError
+pub async fn Subscription::subscribe(Connection, Array[String], pattern? : Bool) -> Self raise @moonredis.RedisError
+pub async fn Subscription::unsubscribe(Self, Array[String], pattern? : Bool) -> Unit raise @moonredis.RedisError
+
+// Type aliases
+
+// Traits

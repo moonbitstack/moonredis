@@ -1,0 +1,57 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/moonredis/resp"
+
+import {
+  "moonbitlang/core/buffer",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn resp_command(Array[String]) -> Bytes
+
+pub fn resp_encode_command(Array[Bytes]) -> Bytes
+
+pub fn resp_kind(RespValue) -> String
+
+// Errors
+pub(all) suberror RespError {
+  RespError(String)
+}
+
+// Types and methods
+pub struct RespReader {
+  data : Bytes
+  mut pos : Int32
+}
+pub fn RespReader::at_end(Self) -> Bool
+pub fn RespReader::decode_first(Self) -> RespValue raise RespError
+pub fn RespReader::new(Bytes) -> Self
+pub fn RespReader::read(Self) -> RespValue raise RespError
+pub fn RespReader::rest(Self) -> Bytes
+
+pub(all) enum RespValue {
+  SimpleString(String)
+  Error(String)
+  Integer(Int64)
+  BulkString(Bytes)
+  Null
+  Array(Array[RespValue])
+  Boolean(Bool)
+  Double(Double)
+  BigNumber(String)
+  BulkError(String)
+  VerbatimString(String, Bytes)
+  RespMap(Array[(RespValue, RespValue)])
+  RespSet(Array[RespValue])
+  Push(Array[RespValue])
+} derive(Eq, @debug.Debug)
+pub fn RespValue::decode(Bytes) -> Self raise RespError
+pub fn RespValue::encode(Self) -> Bytes
+pub fn RespValue::encode_into(Self, @buffer.Buffer) -> Unit
+pub fn RespValue::equal(Self, Self) -> Bool
+pub fn RespValue::not_equal(Self, Self) -> Bool
+pub fn RespValue::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits

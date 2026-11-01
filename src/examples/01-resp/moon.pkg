@@ -1,0 +1,8 @@
+// The RESP codec on its own: encode a command, decode a reply, print the wire and the type.
+// Runs on every backend with no server.
+pkgtype(kind: "executable")
+
+import {
+  "moonbitstack/moonredis/resp",
+  "moonbitlang/core/encoding/utf8",
+}

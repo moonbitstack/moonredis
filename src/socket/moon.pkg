@@ -1,0 +1,15 @@
+// The socket transport: a real redis connection over TCP or TLS, the connection pool, and
+// the pub/sub message reader. The protocol and command surface live in the parent
+// `moonredis` package; this package only moves bytes.
+import {
+  "moonbitstack/moonredis",
+  "moonbitstack/moonredis/resp",
+  "moonbitstack/moonnet/tcp",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/string",
+  "moonbitlang/core/double",
+}
+
+// The sockets exist on the native and wasm backends only, so the package is absent elsewhere.
+
+supported_targets = "native+wasm"

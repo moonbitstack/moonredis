@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "moonbitstack/moonredis/examples/tour"
+package "moonbitstack/moonredis/examples/01-resp"
 
 // Values
 

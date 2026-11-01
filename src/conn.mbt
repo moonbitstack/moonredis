@@ -1,0 +1,51 @@
+// The connection a client speaks over, and the in-memory fake the tests drive it with.
+// `RedisConn` is an open, async trait so the same client runs over a real redis socket
+// (`socket` package) or a scripted fake; the command and reply logic here is transport
+// independent and is tested on every backend against the fake.
+
+///|
+/// A live redis connection: it sends an encoded command (an array of argument byte
+/// strings) and returns the decoded reply. Implementations own the transport — a real
+/// socket speaking RESP, or an in-memory fake. It is open and `async` so a socket can be
+/// one: real redis I/O suspends, and a sealed synchronous trait left every implementation
+/// a test double.
+pub(open) trait RedisConn {
+  async fn execute(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
+}
+
+///|
+/// A redis connection backed by a scripted reply queue and, once the queue is spent, a
+/// handler keyed on the command sent. The tests drive the whole command surface through
+/// it without a socket, and the cluster and sentinel routing tests feed it handlers that
+/// mimic a node.
+pub struct FakeConn {
+  queue : Array[@resp.RespValue]
+  mut at : Int32
+  run : (Array[Bytes]) -> @resp.RespValue
+}
+
+///|
+/// A fake that returns `replies` in order, then `Null` for every further call.
+pub fn FakeConn::new(replies : Array[@resp.RespValue]) -> FakeConn {
+  { queue: replies, at: 0, run: _ => @resp.Null, }
+}
+
+///|
+/// A fake that answers every call with `handler`, ignoring any queue.
+pub fn FakeConn::handler(run : (Array[Bytes]) -> @resp.RespValue) -> FakeConn {
+  { queue: [], at: 0, run, }
+}
+
+///|
+pub extend FakeConn with RedisConn::{execute}
+
+///|
+pub impl RedisConn for FakeConn with fn execute(self, args : Array[Bytes]) -> @resp.RespValue raise RedisError {
+  if self.at < self.queue.length() {
+    let v = self.queue[self.at]
+    self.at += 1
+    v
+  } else {
+    (self.run)(args)
+  }
+}

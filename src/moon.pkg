@@ -1,2 +1,22 @@
-// What this package implements, and a first-hand link to the specification it
-// implements. A package without that link is not finished.
+// moonredis: a Redis client for MoonBit. RESP2 and RESP3, pipelines, transactions,
+// pub/sub, cluster and sentinel. The connection lives in the `socket` package; this
+// package is the protocol and command surface, so it builds and is tested on every
+// backend against a fake connection, and the same client drives a real redis over a
+// socket or an in-memory fake in a test.
+// Protocol: https://redis.io/docs/reference/protocol-spec
+// Commands: https://redis.io/commands
+import {
+  "moonbitstack/moonredis/resp",
+  "moonbitstack/moontls/tls",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/string",
+}
+
+import {
+  "moonbitlang/async",
+} for "test"
+
+// `Resp2` is a public enum variant a caller passes; the compiler cannot see the use, so
+// the unused-constructor warning is allowed (a false positive for a public API).
+
+warnings = "-unused_constructor-0006"

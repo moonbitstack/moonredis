@@ -1,0 +1,12 @@
+// The typed command surface driven against an in-memory fake, so it runs with no server.
+// Native-only because an async entry point needs the native event loop.
+pkgtype(kind: "executable")
+
+supported_targets = "+native"
+
+import {
+  "moonbitstack/moonredis",
+  "moonbitstack/moonredis/resp",
+  "moonbitlang/async",
+  "moonbitlang/core/encoding/utf8",
+}

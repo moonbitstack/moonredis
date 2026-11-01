@@ -1,0 +1,11 @@
+// RESP — the Redis serialization protocol, the wire a redis client speaks. This is
+// the self-contained codec, with no I/O of its own, so it runs and is tested on every
+// backend and is used by the client package as well as by the documentation site, which
+// compiles it to JavaScript and shows the bytes a command becomes and the RESP3 value it
+// decodes to.
+// Protocol: https://redis.io/docs/reference/protocol-spec
+import {
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/double",
+  "moonbitlang/core/string",
+}
