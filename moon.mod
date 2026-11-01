@@ -1,15 +1,15 @@
-name = "moonbitstack/CHANGE-ME"
+name = "moonbitstack/moonredis"
 
 version = "0.1.0"
 
 readme = "README.md"
 
-repository = "https://github.com/moonbitstack/CHANGE-ME"
+repository = "https://github.com/moonbitstack/moonredis"
 
 license = "Apache-2.0"
 
-keywords = [ "moonbit" ]
+keywords = [ "redis", "resp", "client", "moonbit" ]
 
-description = "One sentence saying what this is and what it is not."
+description = "A Redis client for MoonBit: RESP2 and RESP3, pipelines, transactions, pub/sub, cluster and sentinel."
 
 source = "src"
