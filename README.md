@@ -1,58 +1,193 @@
 # moonredis
 
-A Redis client for MoonBit: RESP2 and RESP3, pipelines, transactions, pub/sub, cluster and sentinel.
+A Redis client for MoonBit. It speaks RESP2 and RESP3, covers the command families, and
+carries the pieces a real deployment needs: a connection pool, retries, TLS, ACL auth,
+pipelines, transactions, pub/sub (including sharded), client-side caching, cluster routing
+and sentinel discovery. The protocol and command surface build on every backend; the socket
+transport runs on native and wasm.
 
-```moonbit
-@moonredis.greet("moonbit")
-```
-
-Run `moon run src/examples/tour` for the whole surface in one go.
-
-## Starting from this template
-
-1. `gh repo create moonbitstack/<name> --template moonbitstack/moonkit --public`
-2. Replace `moonredis` everywhere: `moon.mod` (name and repository), the
-   `moon.pkg` files and sources that import the library, and this file's title.
-3. The library is the root package in `src/`, so users write `@<name>.f`. Split it
-   into subpackages named after what they do (`base64/`, `sha2/`, `jwt/`) only
-   where a user would want one without the rest. Delete `src/cmd/` if the
-   repository ships no binary.
-4. Fill in `keywords` and `description` in `moon.mod`. The description is what
-   mooncakes shows, so it says what the package is and what it is not.
-5. Write the specification link into every `moon.pkg`.
-
-## What is here and what is not
-
-| Carried | Why |
-|:--|:--|
-| `.github/workflows/` | GitHub does not inherit workflows; every repository needs its own copy |
-| `moon.mod`, `src/`, `src/cmd/main/`, `src/examples/tour/` | Sources under `src/` so the root holds only entry points; the library is the root package, the binary and the examples sit beside it |
-| `.gitignore`, `.moonignore` | The second one exists because `.gitignore`'s `!.git*` would otherwise pull the whole object database into a published tarball |
-| `LICENSE` | Apache-2.0, the same across the organisation |
-
-**Issue and pull-request templates are not here.** The organisation's `.github`
-repository supplies them to every repository that has none of its own; a copy
-here would shadow that one and then drift from it. A repository adds its own
-only when it needs something the organisation's does not cover.
-
-## The gate
-
-Every commit passes this, with each exit code seen to be zero:
+## Install
 
 ```bash
-moon clean && moon fmt && moon check --target all --deny-warn \
-  && moon build --target all && moon test --target all
+moon add moonbitstack/moonredis
 ```
 
-Before a release, `moon info --target all && git diff --exit-code` as well: the
-generated interface is checked in, and a difference means the interface moved
-without anyone saying so.
+`moon.mod` gains `moonbitstack/moonredis`. The protocol codec is the `moonredis/resp`
+package; the client, its command surface and the routing pieces are the root `moonredis`
+package; the socket transport is `moonredis/socket`.
 
-## Releasing
+## Quick start
 
-Push a signed tag `v<version>`. `release.yml` runs the tests first and publishes
-only if they pass and the organisation variable `MOONCAKES_PUBLISH` is `true`.
-The major version stays at 0.
+```moonbit
+async fn main {
+  let options = @moonredis.ClientOptions::at("127.0.0.1", 6379)
+  let conn = @socket.Connection::connect(options) catch {
+    _ => return
+  }
+  let client = @moonredis.Client::new(conn)
+  let _ = client.set("greeting", "hello")
+  match client.get("greeting") {
+    Some(bytes) => println(@utf8.decode_lossy(bytes[:]))
+    None => println("(nil)")
+  }
+}
+```
+
+`Connection::connect` dials, negotiates the protocol with `HELLO`, authenticates with
+`AUTH` when credentials are set, `SELECT`s the database, and turns on `CLIENT TRACKING` when
+asked. A `Client` wraps any `RedisConn`; `FakeConn` is an in-memory one for tests.
+
+## Interface
+
+### Client and connection
+
+| Item | Purpose |
+|:--|:--|
+| `Client` | The command surface: one async method per redis command, named as in redis-py. |
+| `Client::new(&RedisConn)` | A client over a connection. |
+| `Client::command(Array[Bytes])` | Send a raw command (binary-safe), returning the reply value. |
+| `RedisConn` (open trait) | `execute(Array[Bytes]) -> RespValue`: the transport contract. |
+| `FakeConn` | A scripted in-memory connection for tests (`new`, `handler`). |
+| `RedisError` | `Reply(msg)` for a redis error, `Connection(msg)`, `Closed`, `Protocol(msg)`. |
+
+### Configuration
+
+| Item | Purpose |
+|:--|:--|
+| `ClientOptions` | Endpoint, credentials, protocol, timeouts, and the pool/retry/tracking policies. |
+| `ClientOptions::at(host, port)` | Options at an address over the standard defaults. |
+| `ClientOptions::with_auth(user?, password?)`, `with_db(db)` | Copies with auth or database set. |
+| `client_default`, `pool_default`, `retry_default`, `tracking_default` | The market-standard presets. |
+| `Protocol` | `Resp2` or `Resp3` (the default). |
+| `PoolOptions` | `max_idle`, `max_active`, `min_idle`, `idle_timeout`, `health_check`. |
+| `RetryOptions` | `attempts`, `base_delay`, `max_delay`, `level`, `jitter`. |
+| `TrackingOptions` | `enabled`, `bcast`, `optin`, `optout`, `noloop`, `redirect`. |
+| `backoff_delay(attempt, retry)` | The wait before a retry. |
+
+### Batching and routing
+
+| Item | Purpose |
+|:--|:--|
+| `Pipeline` | Queue commands (`add`) and run them together (`execute`); `multi` wraps them in `MULTI`/`EXEC`. |
+| `Client::watch`, `Client::unwatch`, `Client::discard` | Transaction control. |
+| `ClusterTopology` | A slot-to-node map; `node_for_slot(slot)`. |
+| `ClusterSlot`, `ClusterSlot::new` | A slot range owned by a node. |
+| `ClusterClient` | Routes a command to the node owning its key and follows `MOVED`/`ASK`. |
+| `crc16(bytes)`, `hash_slot(key)`, `same_slot(keys)` | Slot hashing, honouring `{hash tags}`. |
+| `decode_cluster_slots(reply)` | Parse a `CLUSTER SLOTS` reply into a `ClusterTopology`. |
+| `SentinelClient` | Resolve a master address through a list of sentinels. |
+| `RetryConn`, `should_retry(error, attempt, retry)` | A retrying view of any connection. |
+
+### Pub/sub and values
+
+| Item | Purpose |
+|:--|:--|
+| `Message` | A pub/sub frame: `kind`, `channel`, `payload`, `pattern`, `count`. |
+| `Message::parse(value)` | Parse a RESP2 array or RESP3 push frame into a `Message`. |
+| `StreamEntry` | One stream entry: `id` and `fields`. |
+| `PendingSummary` | The `XPENDING` summary: `count`, `min_id`, `max_id`, `consumers`. |
+
+### Socket transport (`moonredis/socket`, native and wasm)
+
+| Item | Purpose |
+|:--|:--|
+| `Connection` | A real connection over TCP or TLS; implements `RedisConn`. |
+| `Connection::connect(options)` | Dial and negotiate from `ClientOptions`. |
+| `Connection::take_pushes()` | Push frames read since the last command. |
+| `Pool` | Reuse idle connections (`get`, `put`, `idle_count`), bounded by `max_idle`. |
+| `Subscription` | `subscribe`/`unsubscribe` and `next` for `Message` frames. |
+
+### Codec (`moonredis/resp`)
+
+| Item | Purpose |
+|:--|:--|
+| `RespValue` | Every RESP2/RESP3 value: simple string, error, integer, bulk string, null, array, boolean, double, big number, bulk error, verbatim string, map, set, push. |
+| `RespValue::decode(bytes)`, `encode()` | Decode one value (or encode it back). |
+| `RespReader` | Stream a sequence of values (`read`, `at_end`, `rest`). |
+| `resp_encode_command(args)`, `resp_command(args)` | Frame a command as an array of bulk strings. |
+| `resp_kind(value)` | A value's type name, for diagnostics. |
+
+The command methods also expose the small builders and decoders they use — `arg_string`,
+`arg_int`, `arg_int64`, `arg_double`, `arg_bytes`, `push_some`; `expect_int64`,
+`expect_bool`, `expect_bytes`, `expect_string`, `expect_string_value`, `expect_array`,
+`expect_double`, `expect_map`; `status_ok` — so a caller can compose a command or decode a
+reply by hand.
+
+## Commands
+
+One async method per command, named as in redis-py. Two helpers where MoonBit needs a name
+that redis uses as a keyword: `type_` for `TYPE` and `move_` for `MOVE`.
+
+| Family | Methods |
+|:--|:--|
+| String | `set`, `set_get`, `setnx`, `setex`, `psetex`, `get`, `mget`, `mset`, `append`, `strlen`, `incr`, `incrby`, `decr`, `decrby`, `getrange`, `setrange`, `getdel`, `getex` |
+| Key | `del`, `unlink`, `exists`, `expire`, `pexpire`, `expireat`, `pexpireat`, `persist`, `ttl`, `pttl`, `type_`, `rename`, `renamenx`, `randomkey`, `touch`, `move_`, `copy`, `keys`, `scan`, `object_encoding`, `object_refcount`, `object_idletime`, `dump`, `restore` |
+| Hash | `hset`, `hsetnx`, `hmset`, `hget`, `hmget`, `hgetall`, `hdel`, `hexists`, `hlen`, `hstrlen`, `hincrby`, `hincrbyfloat`, `hkeys`, `hvals`, `hscan`, `hrandfield` |
+| List | `lpush`, `rpush`, `lpushx`, `rpushx`, `lpop`, `lpopn`, `rpop`, `rpopn`, `llen`, `lindex`, `lrange`, `lset`, `lrem`, `linsert`, `ltrim`, `rpoplpush`, `lmove`, `blpop`, `brpop`, `brpoplpush`, `blmove` |
+| Set | `sadd`, `srem`, `smembers`, `sismember`, `scard`, `spop`, `spopn`, `srandmember`, `srandmembern`, `sinter`, `sunion`, `sdiff`, `sinterstore`, `sunionstore`, `sdiffstore`, `smove`, `sscan` |
+| Sorted set | `zadd`, `zrem`, `zscore`, `zmscore`, `zincrby`, `zcard`, `zrank`, `zrevrank`, `zrange`, `zrange_scores`, `zrevrange`, `zrevrange_scores`, `zrangebyscore`, `zrangebyscore_scores`, `zrevrangebyscore`, `zrevrangebyscore_scores`, `zcount`, `zremrangebyrank`, `zremrangebyscore`, `zpopmin`, `zpopmax`, `zunionstore`, `zinterstore`, `zscan`, `zrandmember`, `bzpopmin`, `bzpopmax` |
+| Stream | `xadd`, `xlen`, `xdel`, `xtrim`, `xrange`, `xrevrange`, `xread`, `xack`, `xgroup_create`, `xgroup_destroy`, `xgroup_createconsumer`, `xgroup_delconsumer`, `xreadgroup`, `xpending` |
+| HyperLogLog | `pfadd`, `pfcount`, `pfmerge` |
+| Geo | `geoadd`, `geodist`, `geohash`, `geopos`, `geosearch` |
+| Bitmap | `setbit`, `getbit`, `bitcount`, `bitpos`, `bitop` |
+| Script / function | `eval`, `evalsha`, `script_load`, `script_exists`, `script_flush`, `function_load`, `function_call`, `function_flush`, `function_delete` |
+| Pub/sub | `publish`, `spublish`, `subscribe`, `unsubscribe`, `psubscribe`, `punsubscribe`, `ssubscribe`, `sunsubscribe` |
+| Server / connection | `ping`, `ping_message`, `echo`, `select`, `auth`, `auth_user`, `info`, `dbsize`, `flushdb`, `flushall`, `swapdb`, `time_`, `lastsave`, `save`, `bgsave`, `bgrewriteaof`, `shutdown`, `config_get`, `config_set`, `config_rewrite`, `config_resetstat`, `client_setname`, `client_getname`, `client_id`, `client_kill`, `command_count`, `slowlog_get`, `slowlog_len`, `slowlog_reset`, `replicaof`, `replicaof_noone` |
+
+## Pipelines and transactions
+
+```moonbit
+let pipeline = @moonredis.Pipeline::new(conn)
+pipeline.add([b"SET", b"a", b"1"])
+pipeline.add([b"INCR", b"a"])
+let replies = pipeline.execute()   // [OK, 2]
+```
+
+Call `pipeline.multi()` before `execute` to wrap the queued commands in `MULTI`/`EXEC`, so
+redis runs them atomically. `Client::watch`/`unwatch`/`discard` are available for optimistic
+locking around a transaction.
+
+## Pub/sub
+
+```moonbit
+let sub = @socket.Subscription::subscribe(conn, ["news"])
+let _ = publisher.publish("news", "hello")
+match sub.next() {
+  Some(message) => println(message.channel + ": " + @utf8.decode_lossy(message.payload[:]))
+  None => ()
+}
+```
+
+`ssubscribe`/`spublish` are the sharded forms, routed to one cluster shard.
+
+## Cluster and sentinel
+
+`ClusterClient` routes each command to the node owning the key's slot (from
+`hash_slot`/`crc16`, honouring `{hash tags}`) and follows a `MOVED`/`ASK` redirect once.
+`ClusterTopology` comes from `decode_cluster_slots`, and `same_slot` checks that a multi-key
+command's keys colocate. `SentinelClient` resolves a master address by asking sentinels in
+turn.
+
+## Pool and retries
+
+`@socket.Pool` reuses idle connections up to `PoolOptions.max_idle`. `RetryConn` retries a
+transport failure up to `RetryOptions.attempts`, while a redis error reply surfaces
+immediately; `backoff_delay`/`should_retry` expose the policy.
+
+## Examples
+
+| Example | Run |
+|:--|:--|
+| `01-resp` | `moon run src/examples/01-resp` — the codec, no server. |
+| `02-commands` | `moon run src/examples/02-commands` — typed commands against a fake. |
+| `03-connect` | `moon run src/examples/03-connect --target native` — a real connection. |
+
+## Testing
+
+The codec and command surface are tested against `FakeConn` with no network, so they run on
+every backend. Integration tests in `src/integration` dial a live redis and skip when none is
+listening. CI starts a standalone redis, a six-node cluster and a sentinel, and runs the
+integration tests against them.
 
 ## Licence
 
