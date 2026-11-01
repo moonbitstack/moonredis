@@ -68,7 +68,16 @@ pub fn expect_array(
   reply : @resp.RespValue,
 ) -> Array[@resp.RespValue] raise RedisError {
   match reply {
-    @resp.Array(items) => items
+    @resp.Array(items) | @resp.RespSet(items) | @resp.Push(items) => items
+    // RESP3 answers HGETALL and its kin with a map where RESP2 had a flat array.
+    @resp.RespMap(pairs) => {
+      let out = []
+      for pair in pairs {
+        out.push(pair.0)
+        out.push(pair.1)
+      }
+      out
+    }
     @resp.Null => []
     other => raise Protocol("expected array, got " + @resp.resp_kind(other))
   }
