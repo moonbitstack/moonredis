@@ -421,6 +421,13 @@ pub(all) struct RetryOptions {
   jitter : Bool
 }
 
+pub struct Script {
+  source : String
+  // private fields
+}
+pub fn Script::new(String) -> Self
+pub async fn Script::run(Self, Client, Array[String], Array[String]) -> @resp.RespValue raise RedisError
+
 pub struct SentinelClient {
   sentinels : Array[&RedisConn]
 }

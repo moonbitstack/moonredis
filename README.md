@@ -133,7 +133,7 @@ that redis uses as a keyword: `type_` for `TYPE` and `move_` for `MOVE`.
 | HyperLogLog | `pfadd`, `pfcount`, `pfmerge` |
 | Geo | `geoadd`, `geodist`, `geohash`, `geopos`, `geosearch` |
 | Bitmap | `setbit`, `getbit`, `bitcount`, `bitpos`, `bitop` |
-| Script / function | `eval`, `evalsha`, `script_load`, `script_exists`, `script_flush`, `function_load`, `function_call`, `function_flush`, `function_delete` |
+| Script / function | `Script` runs a script by digest and reloads it when the server forgets; `eval`, `evalsha`, `script_load`, `script_exists`, `script_flush`, `function_load`, `function_call`, `function_flush`, `function_delete` |
 | Pub/sub | `publish`, `spublish`, `subscribe`, `unsubscribe`, `psubscribe`, `punsubscribe`, `ssubscribe`, `sunsubscribe` |
 | Server / connection | `ping`, `ping_message`, `echo`, `select`, `auth`, `auth_user`, `info`, `dbsize`, `flushdb`, `flushall`, `swapdb`, `time_`, `lastsave`, `save`, `bgsave`, `bgrewriteaof`, `shutdown`, `config_get`, `config_set`, `config_rewrite`, `config_resetstat`, `client_setname`, `client_getname`, `client_id`, `client_kill`, `command_count`, `slowlog_get`, `slowlog_len`, `slowlog_reset`, `replicaof`, `replicaof_noone` |
 

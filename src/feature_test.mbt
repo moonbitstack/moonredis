@@ -165,3 +165,48 @@ async test "retry: retries a transient failure then succeeds" {
   assert_eq(retry.execute([b"PING"]), @resp.SimpleString("OK"))
   assert_eq(conn.calls, 3)
 }
+
+///|
+async test "a script loads once, and again when the server has forgotten it" {
+  let verbs : Array[String] = []
+  let forgotten = Ref(false)
+  let conn = @moonredis.FakeConn::handler(args => {
+    let verb = @utf8.decode_lossy(args[0][:])
+    verbs.push(verb)
+    match verb {
+      "SCRIPT" => @resp.BulkString(b"abc")
+      "EVALSHA" if forgotten.val => {
+        forgotten.val = false
+        @resp.Error("NOSCRIPT No matching script.")
+      }
+      _ => @resp.Integer(7)
+    }
+  })
+  let client = @moonredis.Client::new(conn)
+  let script = @moonredis.Script::new("return 7")
+  assert_eq(script.run(client, ["k"], []), @resp.Integer(7))
+  assert_eq(script.run(client, ["k"], []), @resp.Integer(7))
+  assert_eq(verbs, ["SCRIPT", "EVALSHA", "EVALSHA"])
+  forgotten.val = true
+  assert_eq(script.run(client, ["k"], []), @resp.Integer(7))
+  assert_eq(verbs[3:].to_owned(), ["EVALSHA", "SCRIPT", "EVALSHA"])
+}
+
+///|
+async test "a script's own error is raised, not retried" {
+  let conn = @moonredis.FakeConn::handler(args => {
+    match @utf8.decode_lossy(args[0][:]) {
+      "SCRIPT" => @resp.BulkString(b"abc")
+      _ => @resp.Error("ERR the script failed")
+    }
+  })
+  let script = @moonredis.Script::new("error()")
+  let failed = try {
+    ignore(script.run(@moonredis.Client::new(conn), [], []))
+    false
+  } catch {
+    @moonredis.Reply(_) => true
+    _ => false
+  }
+  assert_true(failed)
+}

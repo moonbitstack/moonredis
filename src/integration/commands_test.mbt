@@ -359,6 +359,12 @@ async test "scripts and functions" {
     assert_eq(c.evalsha(digest, [], []), @resp.Integer(7))
     c.script_flush()
     assert_eq(c.script_exists([digest]), [false])
+    // In this test, because `SCRIPT FLUSH` reaches every database and tests run side by side.
+    let script = @moonredis.Script::new("return redis.call('incr', KEYS[1])")
+    assert_eq(script.run(c, ["counted"], []), @resp.Integer(1))
+    assert_eq(script.run(c, ["counted"], []), @resp.Integer(2))
+    c.script_flush()
+    assert_eq(script.run(c, ["counted"], []), @resp.Integer(3))
     let library =
       #|#!lua name=mylib
       #|redis.register_function('seven', function() return 7 end)
