@@ -6,12 +6,14 @@
 
 ///|
 /// Why a redis call failed: a redis error reply, a transport failure, a closed
-/// connection, or a reply the client could not interpret as the command promised.
+/// connection, a reply the client could not interpret as the command promised, or a
+/// transaction a watched key changed under.
 pub(all) suberror RedisError {
   Reply(String)
   Connection(String)
   Protocol(String)
   Closed
+  Aborted
 } derive(Eq, Debug)
 
 ///|
@@ -32,9 +34,23 @@ pub fn reply_error(reply : @resp.RespValue) -> RedisError {
 }
 
 ///|
-/// What a MOVED or ASK error reply points at: the slot the key hashes to and the
-/// `host:port` of the node that owns it. `None` when the message is neither.
-pub fn redirect(msg : String) -> (Int32, String)? {
+/// Where a cluster node sent a command.
+pub(all) enum Redirect {
+  /// The slot lives there now, so route it there from here on.
+  Moved(slot~ : Int32, node~ : String)
+  /// The slot is migrating and this key has gone ahead: ask there this once, after `ASKING`.
+  Ask(slot~ : Int32, node~ : String)
+} derive(Eq, Debug)
+
+///|
+pub extend Redirect with Debug::{to_repr}
+
+///|
+pub extend Redirect with Eq::{not_equal, equal}
+
+///|
+/// What a `MOVED` or `ASK` error reply points at; `None` when the message is neither.
+pub fn redirect(msg : String) -> Redirect? {
   let space = msg.find(" ")
   guard space is Some(at) else { return None }
   let tag = msg[0:at].to_owned()
@@ -45,9 +61,9 @@ pub fn redirect(msg : String) -> (Int32, String)? {
   let second = rest.find(" ")
   guard second is Some(at2) else { return None }
   let slot_text = rest[0:at2].to_owned()
-  let target = rest[at2 + 1:].to_owned()
+  let node = rest[at2 + 1:].to_owned()
   let slot = @string.parse_int(slot_text) catch { _ => return None }
-  Some((slot, target))
+  Some(if tag == "MOVED" { Moved(slot~, node~) } else { Ask(slot~, node~) })
 }
 
 ///|

@@ -33,7 +33,7 @@ pub async fn Client::sentinel_get_master_addr_by_name(
     @resp.Array(items) => {
       guard items.length() >= 2 else { return None }
       let host = @utf8.decode_lossy(expect_bytes(items[0]).unwrap())
-      let port = expect_int64(items[1]).to_int()
+      let port = expect_number(items[1]).to_int()
       Some((host, port))
     }
     _ => None

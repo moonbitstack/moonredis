@@ -41,25 +41,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y redis-server redis-tools
-          redis-server --port 6379 --daemonize yes --dir /tmp
-          redis-cli -p 6379 ping
-          # A six-node cluster: three masters, three replicas.
-          for port in 7000 7001 7002 7003 7004 7005; do
-            redis-server --port "$port" --cluster-enabled yes \
-              --cluster-config-file "nodes-$port.conf" --cluster-node-timeout 5000 \
-              --appendonly no --daemonize yes --dir /tmp
-          done
-          sleep 3
-          redis-cli --cluster create \
-            127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 \
-            127.0.0.1:7003 127.0.0.1:7004 127.0.0.1:7005 \
-            --cluster-replicas 1 --cluster-yes
-          redis-cli -p 7000 cluster info | head -3
-          # A sentinel watching the standalone master.
-          printf 'port 26379\nsentinel monitor mymaster 127.0.0.1 6379 1\n' > /tmp/sentinel.conf
-          redis-server /tmp/sentinel.conf --sentinel --daemonize yes --dir /tmp
-          sleep 1
-          redis-cli -p 26379 sentinel get-master-addr-by-name mymaster
+          sudo systemctl stop redis-server || true
+          bash scripts/start_redis.sh
           echo "MOONREDIS_LIVE=1" >> "$GITHUB_ENV"
 
       - name: moon check

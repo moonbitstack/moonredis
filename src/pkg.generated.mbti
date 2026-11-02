@@ -38,11 +38,15 @@ pub fn expect_int64(@resp.RespValue) -> Int64 raise RedisError
 
 pub fn expect_map(@resp.RespValue) -> Array[(@resp.RespValue, @resp.RespValue)] raise RedisError
 
+pub fn expect_number(@resp.RespValue) -> Int64 raise RedisError
+
+pub fn expect_score(@resp.RespValue) -> Double? raise RedisError
+
+pub fn expect_some(@resp.RespValue) -> Array[@resp.RespValue] raise RedisError
+
 pub fn expect_string(@resp.RespValue) -> String? raise RedisError
 
 pub fn expect_string_value(@resp.RespValue) -> String raise RedisError
-
-pub fn greet(StringView) -> String
 
 pub fn hash_slot(String) -> Int32
 
@@ -56,7 +60,9 @@ pub fn protocol_version(Protocol) -> Int32
 
 pub fn push_some(Array[Bytes], Bytes, Bytes?) -> Unit
 
-pub fn redirect(String) -> (Int32, String)?
+pub fn redirect(String) -> Redirect?
+
+pub let redirect_limit : Int32
 
 pub fn reply_error(@resp.RespValue) -> RedisError
 
@@ -76,6 +82,7 @@ pub(all) suberror RedisError {
   Connection(String)
   Protocol(String)
   Closed
+  Aborted
 } derive(Eq, @debug.Debug)
 pub fn RedisError::equal(Self, Self) -> Bool
 pub fn RedisError::not_equal(Self, Self) -> Bool
@@ -101,7 +108,7 @@ pub async fn Client::bzpopmax(Self, Array[String], Int32) -> (String, String, Do
 pub async fn Client::bzpopmin(Self, Array[String], Int32) -> (String, String, Double)? raise RedisError
 pub async fn Client::client_getname(Self) -> String? raise RedisError
 pub async fn Client::client_id(Self) -> Int64 raise RedisError
-pub async fn Client::client_kill(Self, Array[String]) -> Unit raise RedisError
+pub async fn Client::client_kill(Self, Array[String]) -> Int64 raise RedisError
 pub async fn Client::client_setname(Self, String) -> Unit raise RedisError
 pub async fn Client::cluster_slots(Self) -> @resp.RespValue raise RedisError
 pub async fn Client::command(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
@@ -149,7 +156,8 @@ pub async fn Client::hkeys(Self, String) -> Array[String] raise RedisError
 pub async fn Client::hlen(Self, String) -> Int64 raise RedisError
 pub async fn Client::hmget(Self, String, Array[String]) -> Array[Bytes?] raise RedisError
 pub async fn Client::hmset(Self, String, Array[(String, String)]) -> Unit raise RedisError
-pub async fn Client::hrandfield(Self, String, count? : Int32, withvalues? : Bool) -> Array[String] raise RedisError
+pub async fn Client::hrandfield(Self, String, count? : Int32) -> Array[String] raise RedisError
+pub async fn Client::hrandfield_values(Self, String, Int32) -> Array[(String, String)] raise RedisError
 pub async fn Client::hscan(Self, String, String, pattern? : String, count? : Int32) -> (String, Array[(String, String)]) raise RedisError
 pub async fn Client::hset(Self, String, Array[(String, String)]) -> Int64 raise RedisError
 pub async fn Client::hsetnx(Self, String, String, String) -> Bool raise RedisError
@@ -274,7 +282,8 @@ pub async fn Client::zinterstore(Self, String, Array[String], weights? : Array[D
 pub async fn Client::zmscore(Self, String, Array[String]) -> Array[Double?] raise RedisError
 pub async fn Client::zpopmax(Self, String, count? : Int32) -> Array[(String, Double)] raise RedisError
 pub async fn Client::zpopmin(Self, String, count? : Int32) -> Array[(String, Double)] raise RedisError
-pub async fn Client::zrandmember(Self, String, count? : Int32, withscores? : Bool) -> Array[(String, Double)] raise RedisError
+pub async fn Client::zrandmember(Self, String, count? : Int32) -> Array[String] raise RedisError
+pub async fn Client::zrandmember_scores(Self, String, Int32) -> Array[(String, Double)] raise RedisError
 pub async fn Client::zrange(Self, String, Int32, Int32) -> Array[String] raise RedisError
 pub async fn Client::zrange_scores(Self, String, Int32, Int32) -> Array[(String, Double)] raise RedisError
 pub async fn Client::zrangebyscore(Self, String, String, String, offset? : Int32, count? : Int32) -> Array[String] raise RedisError
@@ -292,7 +301,7 @@ pub async fn Client::zscan(Self, String, String, pattern? : String, count? : Int
 pub async fn Client::zscore(Self, String, String) -> Double? raise RedisError
 pub async fn Client::zunionstore(Self, String, Array[String], weights? : Array[Double], aggregate? : String) -> Int64 raise RedisError
 
-pub struct ClientOptions {
+pub(all) struct ClientOptions {
   host : String
   port : Int32
   username : String?
@@ -312,11 +321,13 @@ pub fn ClientOptions::with_auth(Self, String?, String?) -> Self
 pub fn ClientOptions::with_db(Self, Int32) -> Self
 
 pub struct ClusterClient {
-  nodes : Array[(String, &RedisConn)]
+  nodes : Map[String, &RedisConn]
   mut topology : ClusterTopology
+  limit : Int32
+  dial : (async (String) -> &RedisConn raise RedisError)?
 }
 pub async fn ClusterClient::command(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
-pub fn ClusterClient::new(Array[(String, &RedisConn)], ClusterTopology) -> Self
+pub fn ClusterClient::new(Array[(String, &RedisConn)], ClusterTopology, limit? : Int32, dial? : async (String) -> &RedisConn raise RedisError) -> Self
 pub fn ClusterClient::set_topology(Self, ClusterTopology) -> Unit
 
 pub struct ClusterSlot {
@@ -329,6 +340,7 @@ pub fn ClusterSlot::new(Int32, Int32, String) -> Self
 pub struct ClusterTopology {
   slots : Array[ClusterSlot]
 }
+pub fn ClusterTopology::assign(Self, Int32, String) -> Unit
 pub fn ClusterTopology::new(Array[ClusterSlot]) -> Self
 pub fn ClusterTopology::node_for_slot(Self, Int32) -> String?
 
@@ -338,6 +350,7 @@ pub struct FakeConn {
   run : (Array[Bytes]) -> @resp.RespValue
 }
 pub async fn FakeConn::execute(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
+pub async fn FakeConn::execute_all(Self, Array[Array[Bytes]]) -> Array[@resp.RespValue] raise RedisError
 pub fn FakeConn::handler((Array[Bytes]) -> @resp.RespValue) -> Self
 pub fn FakeConn::new(Array[@resp.RespValue]) -> Self
 pub impl RedisConn for FakeConn
@@ -353,8 +366,8 @@ pub fn Message::parse(@resp.RespValue) -> Self?
 
 pub struct PendingSummary {
   count : Int64
-  min_id : String
-  max_id : String
+  min_id : String?
+  max_id : String?
   consumers : Array[(String, Int64)]
 }
 
@@ -368,7 +381,7 @@ pub async fn Pipeline::execute(Self) -> Array[@resp.RespValue] raise RedisError
 pub fn Pipeline::multi(Self) -> Unit
 pub fn Pipeline::new(&RedisConn) -> Self
 
-pub struct PoolOptions {
+pub(all) struct PoolOptions {
   max_idle : Int32
   max_active : Int32
   min_idle : Int32
@@ -376,20 +389,31 @@ pub struct PoolOptions {
   health_check : Bool
 }
 
-pub enum Protocol {
+pub(all) enum Protocol {
   Resp2
   Resp3
 }
 
+pub(all) enum Redirect {
+  Moved(slot~ : Int32, node~ : String)
+  Ask(slot~ : Int32, node~ : String)
+} derive(Eq, @debug.Debug)
+pub fn Redirect::equal(Self, Self) -> Bool
+pub fn Redirect::not_equal(Self, Self) -> Bool
+pub fn Redirect::to_repr(Self) -> @debug.Repr
+
 pub struct RetryConn {
-  inner : &RedisConn
+  mut inner : &RedisConn
   retry : RetryOptions
+  dial : (async () -> &RedisConn raise RedisError)?
+  wait : (async (Int64) -> Unit noraise)?
 }
 pub async fn RetryConn::execute(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
-pub fn RetryConn::new(&RedisConn, RetryOptions) -> Self
+pub async fn RetryConn::execute_all(Self, Array[Array[Bytes]]) -> Array[@resp.RespValue] raise RedisError
+pub fn RetryConn::new(&RedisConn, RetryOptions, dial? : async () -> &RedisConn raise RedisError, wait? : async (Int64) -> Unit noraise) -> Self
 pub impl RedisConn for RetryConn
 
-pub struct RetryOptions {
+pub(all) struct RetryOptions {
   attempts : Int32
   base_delay : Int64
   max_delay : Int64
@@ -408,7 +432,7 @@ pub struct StreamEntry {
   fields : Array[(String, String)]
 }
 
-pub struct TrackingOptions {
+pub(all) struct TrackingOptions {
   enabled : Bool
   bcast : Bool
   optin : Bool
@@ -422,4 +446,5 @@ pub struct TrackingOptions {
 // Traits
 pub(open) trait RedisConn {
   async fn execute(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
+  async fn execute_all(Self, Array[Array[Bytes]]) -> Array[@resp.RespValue] raise RedisError = _
 }

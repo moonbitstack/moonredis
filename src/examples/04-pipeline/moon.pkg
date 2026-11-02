@@ -1,0 +1,11 @@
+// Several commands in one round trip, and a transaction that loses to a concurrent write.
+pkgtype(kind: "executable")
+
+supported_targets = "+native"
+
+import {
+  "moonbitstack/moonredis",
+  "moonbitstack/moonredis/resp",
+  "moonbitstack/moonredis/socket",
+  "moonbitlang/async",
+}

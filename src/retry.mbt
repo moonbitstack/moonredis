@@ -22,39 +22,44 @@ pub fn should_retry(
 
 ///|
 /// A connection that retries transport failures up to `retry.attempts` times, leaving a
-/// redis error reply to surface at once.
+/// redis error reply to surface at once. A dropped connection stays dropped, so a retry that
+/// is to reach the server needs `dial` to open another; `wait` sleeps for the backoff.
+/// `@socket.connect_retrying` wires both.
 pub struct RetryConn {
-  inner : &RedisConn
+  mut inner : &RedisConn
   retry : RetryOptions
+  dial : (async () -> &RedisConn raise RedisError)?
+  wait : (async (Int64) -> Unit noraise)?
 }
 
 ///|
 /// A retrying view of `inner` under `retry`.
-pub fn RetryConn::new(inner : &RedisConn, retry : RetryOptions) -> RetryConn {
-  { inner, retry, }
+pub fn RetryConn::new(
+  inner : &RedisConn,
+  retry : RetryOptions,
+  dial? : async () -> &RedisConn raise RedisError,
+  wait? : async (Int64) -> Unit noraise,
+) -> RetryConn {
+  { inner, retry, dial, wait, }
 }
 
 ///|
-pub extend RetryConn with RedisConn::{execute}
+pub extend RetryConn with RedisConn::{execute, execute_all}
 
 ///|
 pub impl RedisConn for RetryConn with fn execute(self, args : Array[Bytes]) -> @resp.RespValue raise RedisError {
-  self.attempt(args, 0)
-}
-
-///|
-/// Try `args`; on a retryable failure, try again with the next attempt index.
-async fn RetryConn::attempt(
-  self : RetryConn,
-  args : Array[Bytes],
-  attempt : Int32,
-) -> @resp.RespValue raise RedisError {
-  self.inner.execute(args) catch {
-    err =>
-      if should_retry(err, attempt, self.retry) {
-        self.attempt(args, attempt + 1)
-      } else {
-        raise err
+  for attempt = 0; ; attempt = attempt + 1 {
+    let failure : RedisError = try {
+      if attempt > 0 && self.dial is Some(dial) {
+        self.inner = dial()
       }
+      return self.inner.execute(args)
+    } catch {
+      e => e
+    }
+    guard should_retry(failure, attempt, self.retry) else { raise failure }
+    if self.wait is Some(wait) {
+      wait(backoff_delay(attempt, self.retry))
+    }
   }
 }

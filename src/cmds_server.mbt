@@ -122,7 +122,7 @@ pub async fn Client::swapdb(
 pub async fn Client::time_(self : Client) -> (Int64, Int64) raise RedisError {
   let items = expect_array(self.command([b"TIME"]))
   guard items.length() >= 2 else { raise Protocol("unexpected TIME reply") }
-  (expect_int64(items[0]), expect_int64(items[1]))
+  (expect_number(items[0]), expect_number(items[1]))
 }
 
 ///|
@@ -229,12 +229,16 @@ pub async fn Client::client_id(self : Client) -> Int64 raise RedisError {
 pub async fn Client::client_kill(
   self : Client,
   filters : Array[String],
-) -> Unit raise RedisError {
+) -> Int64 raise RedisError {
   let args : Array[Bytes] = [b"CLIENT", b"KILL"]
   for f in filters {
     args.push(arg_string(f))
   }
-  status_ok(self.command(args))
+  // The filter form counts what it killed; the old `addr:port` form answers OK.
+  match self.command(args) {
+    @resp.SimpleString(_) => 1
+    other => expect_int64(other)
+  }
 }
 
 ///|

@@ -1,0 +1,11 @@
+// A subscriber on a pattern hears what another connection publishes.
+pkgtype(kind: "executable")
+
+supported_targets = "+native"
+
+import {
+  "moonbitstack/moonredis",
+  "moonbitstack/moonredis/socket",
+  "moonbitlang/async",
+  "moonbitlang/core/encoding/utf8",
+}

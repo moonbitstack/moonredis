@@ -10,7 +10,9 @@ import {
   "moonbitstack/moonsd",
   "moonbitstack/moonsd/conformance",
   "moonbitlang/async",
+  "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
+  "moonbitlang/core/string",
 } for "test"
 
 supported_targets = "native"

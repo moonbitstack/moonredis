@@ -46,9 +46,9 @@ asked. A `Client` wraps any `RedisConn`; `FakeConn` is an in-memory one for test
 | `Client` | The command surface: one async method per redis command, named as in redis-py. |
 | `Client::new(&RedisConn)` | A client over a connection. |
 | `Client::command(Array[Bytes])` | Send a raw command (binary-safe), returning the reply value. |
-| `RedisConn` (open trait) | `execute(Array[Bytes]) -> RespValue`: the transport contract. |
+| `RedisConn` (open trait) | The transport contract: `execute(Array[Bytes]) -> RespValue`, and `execute_all` for several commands in one round trip, which defaults to sending them one at a time. |
 | `FakeConn` | A scripted in-memory connection for tests (`new`, `handler`). |
-| `RedisError` | `Reply(msg)` for a redis error, `Connection(msg)`, `Closed`, `Protocol(msg)`. |
+| `RedisError` | `Reply(msg)` for a redis error, `Connection(msg)`, `Closed`, `Protocol(msg)`, and `Aborted` for a transaction a watched key changed under. |
 
 ### Configuration
 
@@ -68,15 +68,17 @@ asked. A `Client` wraps any `RedisConn`; `FakeConn` is an in-memory one for test
 
 | Item | Purpose |
 |:--|:--|
-| `Pipeline` | Queue commands (`add`) and run them together (`execute`); `multi` wraps them in `MULTI`/`EXEC`. |
+| `Pipeline` | Queue commands (`add`) and send them in one round trip (`execute`); `multi` wraps them in `MULTI`/`EXEC`. |
 | `Client::watch`, `Client::unwatch`, `Client::discard` | Transaction control. |
 | `ClusterTopology` | A slot-to-node map; `node_for_slot(slot)`. |
 | `ClusterSlot`, `ClusterSlot::new` | A slot range owned by a node. |
-| `ClusterClient` | Routes a command to the node owning its key and follows `MOVED`/`ASK`. |
+| `ClusterClient` | Routes a command to the node owning its key and follows `MOVED` and `ASK`, up to `limit` (`redirect_limit`, 3). `dial` opens nodes it was not built with. |
+| `Redirect`, `redirect(msg)` | `Moved` or `Ask` with the slot and node, read from an error reply. |
+| `ClusterTopology::assign(slot, node)` | Record where a slot lives. |
 | `crc16(bytes)`, `hash_slot(key)`, `same_slot(keys)` | Slot hashing, honouring `{hash tags}`. |
 | `decode_cluster_slots(reply)` | Parse a `CLUSTER SLOTS` reply into a `ClusterTopology`. |
 | `SentinelClient` | Resolve a master address through a list of sentinels. |
-| `RetryConn`, `should_retry(error, attempt, retry)` | A retrying view of any connection. |
+| `RetryConn`, `should_retry(error, attempt, retry)` | A retrying view of any connection; `dial` opens a new one after a failure and `wait` sleeps for the backoff. |
 
 ### Pub/sub and values
 
@@ -93,9 +95,10 @@ asked. A `Client` wraps any `RedisConn`; `FakeConn` is an in-memory one for test
 |:--|:--|
 | `Connection` | A real connection over TCP or TLS; implements `RedisConn`. |
 | `Connection::connect(options)` | Dial and negotiate from `ClientOptions`. |
-| `Connection::take_pushes()` | Push frames read since the last command. |
+| `Connection::take_pushes()` | Push frames read since the last command, such as the invalidations `CLIENT TRACKING` sends. |
+| `connect_retrying(options)` | A `RetryConn` that reconnects under `options.retry`. Only for commands that are safe to send twice. |
 | `Pool` | Reuse idle connections (`get`, `put`, `idle_count`), bounded by `max_idle`. |
-| `Subscription` | `subscribe`/`unsubscribe` and `next` for `Message` frames. |
+| `Subscription` | `subscribe`/`unsubscribe` and `next` for `Message` frames; `pattern` and `shard` select `PSUBSCRIBE` and `SSUBSCRIBE`. |
 
 ### Codec (`moonredis/resp`)
 
@@ -145,7 +148,8 @@ let replies = pipeline.execute()   // [OK, 2]
 
 Call `pipeline.multi()` before `execute` to wrap the queued commands in `MULTI`/`EXEC`, so
 redis runs them atomically. `Client::watch`/`unwatch`/`discard` are available for optimistic
-locking around a transaction.
+locking around a transaction: when a watched key changes first, `execute` raises `Aborted` and
+nothing ran. An error reply inside a plain pipeline is one reply among the others.
 
 ## Pub/sub
 
@@ -193,14 +197,19 @@ immediately; `backoff_delay`/`should_retry` expose the policy.
 | `01-resp` | `moon run src/examples/01-resp` — the codec, no server. |
 | `02-commands` | `moon run src/examples/02-commands` — typed commands against a fake. |
 | `03-connect` | `moon run src/examples/03-connect --target native` — a real connection. |
+| `04-pipeline` | `moon run src/examples/04-pipeline --target native` — one round trip, and a transaction that loses a race. |
+| `05-pubsub` | `moon run src/examples/05-pubsub --target native` — a pattern subscription. |
+| `06-cluster` | `moon run src/examples/06-cluster --target native` — keys routed by slot. |
 
 ## Testing
 
 The codec and command surface are tested against `FakeConn` with no network, so they run on
-every backend. Integration tests in `src/integration` dial a live redis and skip when none is
-listening. CI starts a standalone redis, a six-node cluster and a sentinel, and runs the
-integration tests against them. The service-discovery tests run `moonsd`'s conformance check,
-and with `MOONREDIS_LIVE` set, as in CI, a missing server fails them instead of skipping them.
+every backend. `src/integration` runs every command family against a real server under both
+protocols, and covers transactions losing a race, redirects, a slot migrating, a failover and
+a connection killed underneath. `scripts/start_redis.sh` starts what those tests connect to: a
+standalone redis, a six-node cluster, and a master and replica under a sentinel. Without
+servers the tests return early; with `MOONREDIS_LIVE` set, as in CI, a missing server fails
+them.
 
 ## Licence
 

@@ -7,7 +7,7 @@
 /// Which RESP version to negotiate with `HELLO`. RESP2 is the long-standing wire; RESP3
 /// adds the typed null, boolean, double, map, set and push values and is required for
 /// client-side caching.
-pub enum Protocol {
+pub(all) enum Protocol {
   Resp2
   Resp3
 }
@@ -24,7 +24,7 @@ pub fn protocol_version(protocol : Protocol) -> Int32 {
 ///|
 /// The pool a client draws connections from: its size bounds, how long an idle
 /// connection lives, and whether a borrowed connection is checked before use.
-pub struct PoolOptions {
+pub(all) struct PoolOptions {
   /// The most idle connections kept ready; the pool drops idle ones past it. 10, as in
   /// `go-redis`'s `MaxIdle`.
   max_idle : Int32
@@ -54,7 +54,7 @@ pub let pool_default : PoolOptions = PoolOptions::{
 ///|
 /// How a call retries after a transport failure: how many attempts in total, the backoff
 /// between them and how hard it backs off.
-pub struct RetryOptions {
+pub(all) struct RetryOptions {
   /// Total attempts including the first; 3, as `go-redis`'s `MaxRetries`.
   attempts : Int32
   /// The delay before the first retry, in milliseconds. 100, as `go-redis`'s
@@ -83,7 +83,7 @@ pub let retry_default : RetryOptions = RetryOptions::{
 ///|
 /// Client-side caching (`CLIENT TRACKING`): whether keys this client reads are tracked so
 /// redis pushes invalidations, and in which mode.
-pub struct TrackingOptions {
+pub(all) struct TrackingOptions {
   /// Whether tracking is on. False; it is off until a caller opts in.
   enabled : Bool
   /// Broadcast mode, where redis tracks and invalidates by prefix rather than per client
@@ -114,7 +114,7 @@ pub let tracking_default : TrackingOptions = TrackingOptions::{
 ///|
 /// Everything needed to reach and speak to a redis: the endpoint and credentials, the
 /// protocol, the timeouts, and the pool, retry and tracking policies.
-pub struct ClientOptions {
+pub(all) struct ClientOptions {
   /// The host to dial. `127.0.0.1`.
   host : String
   /// The port to dial; 6379, redis's well-known port (not the organisation's 12000,

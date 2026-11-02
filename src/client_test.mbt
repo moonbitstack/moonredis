@@ -1,6 +1,6 @@
 // Internal tests: this file is part of `package moonredis`, so it inherits the `for "test"`
 // async import and can drive the typed command surface through the in-memory `FakeConn`
-// without a socket. The same package also ships the blackbox `greet_test.mbt`.
+// without a socket.
 // Test files qualify package members with `@moonredis.` to silence the implicit-import warning.
 
 ///|

@@ -16,7 +16,7 @@ source = "src"
 
 import {
   "moonbitstack/moonsd@0.1.0",
-  "moonbitstack/moonnet@0.1.7",
-  "moonbitstack/moontls@0.9.7",
+  "moonbitstack/moonnet@0.1.8",
+  "moonbitstack/moontls@0.9.11",
   "moonbitlang/async@0.22.5",
 }

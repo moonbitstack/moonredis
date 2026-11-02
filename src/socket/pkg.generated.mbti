@@ -8,6 +8,7 @@ import {
 }
 
 // Values
+pub async fn connect_retrying(@moonredis.ClientOptions) -> @moonredis.RetryConn raise @moonredis.RedisError
 
 // Errors
 
@@ -18,6 +19,7 @@ pub struct Connection {
 }
 pub async fn Connection::connect(@moonredis.ClientOptions) -> Self raise @moonredis.RedisError
 pub async fn Connection::execute(Self, Array[Bytes]) -> @resp.RespValue raise @moonredis.RedisError
+pub async fn Connection::execute_all(Self, Array[Array[Bytes]]) -> Array[@resp.RespValue] raise @moonredis.RedisError
 pub fn Connection::take_pushes(Self) -> Array[@resp.RespValue]
 pub impl @moonredis.RedisConn for Connection
 
@@ -34,8 +36,8 @@ pub struct Subscription {
   conn : Connection
 }
 pub async fn Subscription::next(Self) -> @moonredis.Message? raise @moonredis.RedisError
-pub async fn Subscription::subscribe(Connection, Array[String], pattern? : Bool) -> Self raise @moonredis.RedisError
-pub async fn Subscription::unsubscribe(Self, Array[String], pattern? : Bool) -> Unit raise @moonredis.RedisError
+pub async fn Subscription::subscribe(Connection, Array[String], pattern? : Bool, shard? : Bool) -> Self raise @moonredis.RedisError
+pub async fn Subscription::unsubscribe(Self, Array[String], pattern? : Bool, shard? : Bool) -> Unit raise @moonredis.RedisError
 
 // Type aliases
 

@@ -22,6 +22,32 @@ pub fn expect_int64(reply : @resp.RespValue) -> Int64 raise RedisError {
 }
 
 ///|
+/// A number redis writes as text: `TIME`, and the ports and counts of sentinel and stream
+/// replies, come back as strings under both protocols.
+pub fn expect_number(reply : @resp.RespValue) -> Int64 raise RedisError {
+  match reply {
+    @resp.Integer(n) => n
+    @resp.BulkString(b) =>
+      @string.parse_int64(@utf8.decode_lossy(b[:])) catch {
+        _ => raise Protocol("expected a number, got bulk")
+      }
+    other => raise Protocol("expected a number, got " + @resp.resp_kind(other))
+  }
+}
+
+///|
+/// The members of a reply that is one bulk value without a count and an array with one, and
+/// nothing when the key is missing.
+pub fn expect_some(
+  reply : @resp.RespValue,
+) -> Array[@resp.RespValue] raise RedisError {
+  match reply {
+    @resp.BulkString(_) | @resp.SimpleString(_) => [reply]
+    other => expect_array(other)
+  }
+}
+
+///|
 /// A reply as a `Bool`: the `1`/`0` redis uses for existence, success and comparison.
 pub fn expect_bool(reply : @resp.RespValue) -> Bool raise RedisError {
   match reply {
@@ -35,7 +61,7 @@ pub fn expect_bool(reply : @resp.RespValue) -> Bool raise RedisError {
 /// A reply as binary bytes, or `None` for the nil a missing key decodes to.
 pub fn expect_bytes(reply : @resp.RespValue) -> Bytes? raise RedisError {
   match reply {
-    @resp.BulkString(b) => Some(b)
+    @resp.BulkString(b) | @resp.VerbatimString(_, b) => Some(b)
     @resp.Null => None
     other =>
       raise Protocol("expected bulk string, got " + @resp.resp_kind(other))
@@ -46,7 +72,8 @@ pub fn expect_bytes(reply : @resp.RespValue) -> Bytes? raise RedisError {
 /// A reply as a `String`, or `None` for nil.
 pub fn expect_string(reply : @resp.RespValue) -> String? raise RedisError {
   match reply {
-    @resp.BulkString(b) => Some(@utf8.decode_lossy(b[:]))
+    @resp.BulkString(b) | @resp.VerbatimString(_, b) =>
+      Some(@utf8.decode_lossy(b[:]))
     @resp.SimpleString(s) => Some(s)
     @resp.Null => None
     other => raise Protocol("expected string, got " + @resp.resp_kind(other))
@@ -99,6 +126,15 @@ pub fn expect_double(reply : @resp.RespValue) -> Double raise RedisError {
         _ => raise Protocol("expected double, got bulk")
       }
     other => raise Protocol("expected double, got " + @resp.resp_kind(other))
+  }
+}
+
+///|
+/// A score that may be missing: RESP3 sends a double, RESP2 a string, and both nil.
+pub fn expect_score(reply : @resp.RespValue) -> Double? raise RedisError {
+  match reply {
+    @resp.Null => None
+    other => Some(expect_double(other))
   }
 }
 

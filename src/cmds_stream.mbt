@@ -16,8 +16,10 @@ pub struct StreamEntry {
 /// pending ids, and per-consumer pending counts.
 pub struct PendingSummary {
   count : Int64
-  min_id : String
-  max_id : String
+  /// The oldest pending id; `None` when nothing is pending.
+  min_id : String?
+  /// The newest pending id; `None` when nothing is pending.
+  max_id : String?
   consumers : Array[(String, Int64)]
 }
 
@@ -294,18 +296,15 @@ pub async fn Client::xpending(
   )
   guard arr.length() >= 3 else { raise Protocol("unexpected XPENDING reply") }
   let count = expect_int64(arr[0])
-  let min_id = @utf8.decode_lossy(expect_bytes(arr[1]).unwrap())
-  let max_id = @utf8.decode_lossy(expect_bytes(arr[2]).unwrap())
+  let min_id = expect_string(arr[1])
+  let max_id = expect_string(arr[2])
   let consumers : Array[(String, Int64)] = []
   if arr.length() >= 4 {
-    match arr[3] {
-      @resp.Array(items) =>
-        for c = 0; c < items.length(); c = c + 2 {
-          let name = @utf8.decode_lossy(expect_bytes(items[c]).unwrap())
-          let pending = expect_int64(items[c + 1])
-          consumers.push((name, pending))
-        }
-      _ => ()
+    for item in expect_array(arr[3]) {
+      guard item is @resp.Array([name, pending]) else {
+        raise Protocol("unexpected XPENDING consumer")
+      }
+      consumers.push((expect_string_value(name), expect_number(pending)))
     }
   }
   { count, min_id, max_id, consumers, }
@@ -319,6 +318,14 @@ fn decode_streams(
 ) -> Array[(String, Array[StreamEntry])]? raise RedisError {
   match reply {
     @resp.Null => None
+    // RESP3 keys the streams by name where RESP2 has a pair for each.
+    @resp.RespMap(pairs) => {
+      let out : Array[(String, Array[StreamEntry])] = []
+      for pair in pairs {
+        out.push((expect_string_value(pair.0), decode_entries(pair.1)))
+      }
+      Some(out)
+    }
     @resp.Array(items) => {
       let out : Array[(String, Array[StreamEntry])] = []
       for stream in items {
@@ -357,6 +364,8 @@ fn decode_entries(
         let id = @utf8.decode_lossy(expect_bytes(pair[0]).unwrap())
         let fields = match pair[1] {
           @resp.Array(fv) => decode_pairs(fv)
+          // A pending entry that was deleted comes back with no fields.
+          @resp.Null => []
           _ => raise Protocol("unexpected stream fields")
         }
         out.push({ id, fields, })

@@ -9,17 +9,18 @@ pub struct Subscription {
 }
 
 ///|
-/// Subscribe `conn` to `channels` (or patterns) and consume the confirmation frames, so the
-/// next read returns a message rather than a confirmation.
+/// Subscribe `conn` to `channels`, to patterns with `pattern`, or to shard channels with `shard`,
+/// and consume the confirmation frames, so the next read returns a message.
 pub async fn Subscription::subscribe(
   conn : Connection,
   channels : Array[String],
   pattern? : Bool,
+  shard? : Bool,
 ) -> Subscription raise @moonredis.RedisError {
-  let op : Bytes = if pattern.unwrap_or(false) {
-    b"PSUBSCRIBE"
-  } else {
-    b"SUBSCRIBE"
+  let op : Bytes = match (pattern, shard) {
+    (Some(true), _) => b"PSUBSCRIBE"
+    (_, Some(true)) => b"SSUBSCRIBE"
+    _ => b"SUBSCRIBE"
   }
   let args : Array[Bytes] = [op]
   for c in channels {
@@ -43,17 +44,17 @@ pub async fn Subscription::next(
 }
 
 ///|
-/// `UNSUBSCRIBE`/`PUNSUBSCRIBE` from the given channels or patterns, consuming the
-/// confirmation frames.
+/// Leave the given channels, patterns or shard channels, consuming the confirmation frames.
 pub async fn Subscription::unsubscribe(
   self : Subscription,
   channels : Array[String],
   pattern? : Bool,
+  shard? : Bool,
 ) -> Unit raise @moonredis.RedisError {
-  let op : Bytes = if pattern.unwrap_or(false) {
-    b"PUNSUBSCRIBE"
-  } else {
-    b"UNSUBSCRIBE"
+  let op : Bytes = match (pattern, shard) {
+    (Some(true), _) => b"PUNSUBSCRIBE"
+    (_, Some(true)) => b"SUNSUBSCRIBE"
+    _ => b"UNSUBSCRIBE"
   }
   let args : Array[Bytes] = [op]
   for c in channels {

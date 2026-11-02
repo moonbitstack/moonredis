@@ -1,0 +1,11 @@
+// Keys routed across a cluster by slot, with redirects followed.
+pkgtype(kind: "executable")
+
+supported_targets = "+native"
+
+import {
+  "moonbitstack/moonredis",
+  "moonbitstack/moonredis/socket",
+  "moonbitlang/async",
+  "moonbitlang/core/encoding/utf8",
+}

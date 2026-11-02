@@ -207,18 +207,40 @@ pub async fn Client::hrandfield(
   self : Client,
   key : String,
   count? : Int32,
-  withvalues? : Bool,
 ) -> Array[String] raise RedisError {
   let args : Array[Bytes] = [b"HRANDFIELD", arg_string(key)]
   match count {
     Some(n) => args.push(arg_int(n))
     None => ()
   }
-  if withvalues.unwrap_or(false) {
-    args.push(b"WITHVALUES")
-  }
+  let items = expect_some(self.command(args))
+  items.map(expect_string_value)
+}
+
+///|
+/// `HRANDFIELD key count WITHVALUES`: random fields with their values. A negative `count` may
+/// repeat a field.
+pub async fn Client::hrandfield_values(
+  self : Client,
+  key : String,
+  count : Int32,
+) -> Array[(String, String)] raise RedisError {
+  let args : Array[Bytes] = [
+    b"HRANDFIELD",
+    arg_string(key),
+    arg_int(count),
+    b"WITHVALUES",
+  ]
   let items = expect_array(self.command(args))
-  items.map(x => @utf8.decode_lossy(expect_bytes(x).unwrap()))
+  if items is [@resp.Array(_), ..] {
+    return items.map(item => {
+      guard item is @resp.Array([field, value]) else {
+        raise Protocol("unexpected field/value pair")
+      }
+      (expect_string_value(field), expect_string_value(value))
+    })
+  }
+  decode_pairs(items)
 }
 
 ///|

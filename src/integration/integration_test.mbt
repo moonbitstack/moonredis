@@ -1,58 +1,61 @@
-// Integration tests against a live redis. Each connects to 127.0.0.1:6379 and returns early
-// when nothing is listening, so the unit suite passes without a server and CI — which starts
-// a redis — exercises them for real.
+// Integration tests against live servers. They connect through `live`: with no server they
+// return, so the unit suite passes on a machine without redis, and with `MOONREDIS_LIVE` set,
+// as `scripts/start_redis.sh` is run for in CI, a missing server fails them.
 
 ///|
-async test "socket: ping and set/get against a live redis (skips if none)" {
-  let options = @moonredis.ClientOptions::at("127.0.0.1", 6379)
-  let conn = @socket.Connection::connect(options) catch { _ => return }
+/// A connection to `port`, or `None` when nothing listens and nothing is required to.
+async fn live(
+  port : Int32,
+  protocol? : @moonredis.Protocol,
+  db? : Int32,
+  tracking? : @moonredis.TrackingOptions,
+) -> @socket.Connection? {
+  let base = @moonredis.ClientOptions::at("127.0.0.1", port)
+  let options = {
+    ..base,
+    protocol: protocol.unwrap_or(base.protocol),
+    db: db.unwrap_or(base.db),
+    tracking: tracking.unwrap_or(base.tracking),
+  }
+  let conn = @socket.Connection::connect(options) catch {
+    _ => {
+      if @env.get_env_var("MOONREDIS_LIVE") is Some(_) {
+        fail("no redis on \{port}")
+      }
+      return None
+    }
+  }
+  Some(conn)
+}
+
+///|
+async test "a connection answers and round-trips a value" {
+  guard live(6379) is Some(conn) else { return }
   let client = @moonredis.Client::new(conn)
   assert_eq(client.ping(), "PONG")
   assert_true(client.set("moonredis:it:key", "v"))
   assert_eq(client.get("moonredis:it:key"), Some(b"v"))
-  let _ = client.del(["moonredis:it:key"])
+  ignore(client.del(["moonredis:it:key"]))
 }
 
 ///|
-async test "socket: hash round-trip" {
-  let options = @moonredis.ClientOptions::at("127.0.0.1", 6379)
-  let conn = @socket.Connection::connect(options) catch { _ => return }
-  let client = @moonredis.Client::new(conn)
-  let _ = client.del(["moonredis:it:h"])
-  assert_eq(client.hset("moonredis:it:h", [("a", "1"), ("b", "2")]), 2)
-  let pairs = client.hgetall("moonredis:it:h")
-  assert_eq(pairs.length(), 2)
-  assert_eq(client.hget("moonredis:it:h", "a"), Some(b"1"))
-  let _ = client.del(["moonredis:it:h"])
+async test "binary values survive the round trip" {
+  guard live(6379) is Some(conn) else { return }
+  let batch = @moonredis.Pipeline::new(conn)
+  let value : Bytes = b"\x00\xff\r\n$5\r\n"
+  batch.add([b"SET", b"moonredis:it:binary", value])
+  batch.add([b"GET", b"moonredis:it:binary"])
+  batch.add([b"DEL", b"moonredis:it:binary"])
+  assert_eq(batch.execute()[1], @resp.BulkString(value))
 }
 
 ///|
-async test "socket: pipeline collects ordered replies" {
-  let options = @moonredis.ClientOptions::at("127.0.0.1", 6379)
-  let conn = @socket.Connection::connect(options) catch { _ => return }
-  let p = @moonredis.Pipeline::new(conn)
-  p.add([b"SET", b"moonredis:it:p", b"1"])
-  p.add([b"GET", b"moonredis:it:p"])
-  p.add([b"DEL", b"moonredis:it:p"])
-  let replies = p.execute()
-  assert_eq(replies.length(), 3)
-  assert_eq(replies[1], @resp.BulkString(b"1"))
-}
-
-///|
-async test "socket: a published message reaches a subscriber" {
-  let options = @moonredis.ClientOptions::at("127.0.0.1", 6379)
-  let sub_conn = @socket.Connection::connect(options) catch { _ => return }
-  let sub = @socket.Subscription::subscribe(sub_conn, ["moonredis:it:ch"])
-  let pub_conn = @socket.Connection::connect(options) catch { _ => return }
-  let publisher = @moonredis.Client::new(pub_conn)
-  let _ = publisher.publish("moonredis:it:ch", "hello")
-  match sub.next() {
-    Some(m) => {
-      assert_eq(m.kind, "message")
-      assert_eq(m.channel, "moonredis:it:ch")
-      assert_eq(m.payload, b"hello")
-    }
-    None => assert_true(false)
-  }
+async test "a database is chosen on connect" {
+  guard live(6379, db=11) is Some(three) else { return }
+  guard live(6379, db=12) is Some(four) else { return }
+  let a = @moonredis.Client::new(three)
+  let b = @moonredis.Client::new(four)
+  ignore(a.set("moonredis:it:db", "three"))
+  assert_eq(b.get("moonredis:it:db"), None)
+  ignore(a.del(["moonredis:it:db"]))
 }

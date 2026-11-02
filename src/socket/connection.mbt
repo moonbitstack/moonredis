@@ -132,7 +132,7 @@ async fn Connection::enable_tracking(
 }
 
 ///|
-pub extend Connection with @moonredis.RedisConn::{execute}
+pub extend Connection with @moonredis.RedisConn::{execute, execute_all}
 
 ///|
 pub impl @moonredis.RedisConn for Connection with fn execute(
@@ -141,6 +141,42 @@ pub impl @moonredis.RedisConn for Connection with fn execute(
 ) -> @resp.RespValue raise @moonredis.RedisError {
   write_bytes(self.conn, @resp.resp_encode_command(args))
   read_reply(self.conn, self.pushes)
+}
+
+///|
+pub impl @moonredis.RedisConn for Connection with fn execute_all(
+  self,
+  commands : Array[Array[Bytes]],
+) -> Array[@resp.RespValue] raise @moonredis.RedisError {
+  let wire = @buffer.Buffer()
+  for args in commands {
+    wire.write_bytes(@resp.resp_encode_command(args))
+  }
+  write_bytes(self.conn, wire.to_bytes())
+  let replies = []
+  for _ in commands {
+    replies.push(read_reply(self.conn, self.pushes))
+  }
+  replies
+}
+
+///|
+/// A connection that opens a new socket when the old one drops, up to `options.retry`, and
+/// waits the policy's backoff between tries. Only for commands that are safe to send twice:
+/// a socket that dies after writing cannot say whether redis ran the command.
+pub async fn connect_retrying(
+  options : @moonredis.ClientOptions,
+) -> @moonredis.RetryConn raise @moonredis.RedisError {
+  let first : &@moonredis.RedisConn = Connection::connect(options)
+  @moonredis.RetryConn::new(
+    first,
+    options.retry,
+    dial=() => {
+      let next : &@moonredis.RedisConn = Connection::connect(options)
+      next
+    },
+    wait=delay => @async.sleep(delay.to_int()),
+  )
 }
 
 ///|

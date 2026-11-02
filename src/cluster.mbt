@@ -1,7 +1,7 @@
 // Cluster routing. A redis cluster shards keys across 16384 slots by CRC16; a key's slot
 // decides which node owns it, and a node answers a mis-routed command with a `MOVED`
-// (or, mid-migration, `ASK`) redirect to the owner. These are the pure routing pieces —
-// slot hashing, topology, and the MOVED/ASK-aware client — tested against fakes.
+// (or, mid-migration, `ASK`) redirect to the owner. These are the routing pieces: slot
+// hashing, topology, and the client that follows redirects.
 
 ///|
 /// A contiguous range of slots owned by one node, named by `host:port`.
@@ -32,6 +32,23 @@ pub struct ClusterTopology {
 /// tests).
 pub fn ClusterTopology::new(slots : Array[ClusterSlot]) -> ClusterTopology {
   { slots, }
+}
+
+///|
+/// Record that `slot` lives on `node`. Singles sit ahead of the ranges, so the first match
+/// in `node_for_slot` is the latest word on a slot.
+pub fn ClusterTopology::assign(
+  self : ClusterTopology,
+  slot : Int32,
+  node : String,
+) -> Unit {
+  for i, s in self.slots {
+    if s.start == slot && s.end == slot {
+      self.slots[i] = { ..s, node, }
+      return
+    }
+  }
+  self.slots.insert(0, ClusterSlot::new(slot, slot, node))
 }
 
 ///|
@@ -154,11 +171,20 @@ pub fn decode_cluster_slots(
 }
 
 ///|
-/// A cluster-aware client: it routes a command to the node owning its key and follows a
-/// `MOVED`/`ASK` redirect once. Built from a connection per node address and the topology.
+/// How many redirects one command may follow before giving up; go-redis's `MaxRedirects`.
+pub let redirect_limit : Int32 = 3
+
+///|
+/// A cluster-aware client: it routes a command to the node owning its key and follows
+/// `MOVED` and `ASK` redirects. Built from a connection per node address and the topology.
+///
+/// A redirect can name a node it was not built with, after a reshard or a failover. `dial`
+/// opens a connection to such a node; without it that redirect is a `Connection` error.
 pub struct ClusterClient {
-  nodes : Array[(String, &RedisConn)]
+  nodes : Map[String, &RedisConn]
   mut topology : ClusterTopology
+  limit : Int32
+  dial : (async (String) -> &RedisConn raise RedisError)?
 }
 
 ///|
@@ -166,8 +192,10 @@ pub struct ClusterClient {
 pub fn ClusterClient::new(
   nodes : Array[(String, &RedisConn)],
   topology : ClusterTopology,
+  limit~ : Int32 = redirect_limit,
+  dial? : async (String) -> &RedisConn raise RedisError,
 ) -> ClusterClient {
-  { nodes, topology, }
+  { nodes: Map::from_array(nodes), topology, limit, dial, }
 }
 
 ///|
@@ -180,47 +208,60 @@ pub fn ClusterClient::set_topology(
 }
 
 ///|
-/// Send `args` to the node owning its key, following one `MOVED`/`ASK` redirect. The key is
-/// the first argument after the command name.
+/// Send `args` to the node owning its key, following redirects up to the limit. The key is
+/// the first argument after the command name. `MOVED` updates the topology, since the slot
+/// has gone for good; `ASK` does not, since only this key has gone ahead so far, and the node
+/// it names serves the key only straight after `ASKING`.
 pub async fn ClusterClient::command(
   self : ClusterClient,
   args : Array[Bytes],
 ) -> @resp.RespValue raise RedisError {
   let slot = cluster_slot_of_args(args)
-  let addr = match self.topology.node_for_slot(slot) {
-    Some(a) => a
-    None => raise Protocol("no node owns slot " + slot.to_string())
+  guard self.topology.node_for_slot(slot) is Some(addr) else {
+    raise Protocol("no node owns slot " + slot.to_string())
   }
-  let conn = self.conn_for(addr)
-  let reply = conn.execute(args)
-  match reply {
-    @resp.Error(msg) | @resp.BulkError(msg) =>
-      match redirect(msg) {
-        Some((target_slot, target_addr)) => {
-          let target_conn = self.conn_for(target_addr)
-          self.topology = ClusterTopology::new([
-            { start: target_slot, end: target_slot, node: target_addr, },
-          ])
-          target_conn.execute(args)
-        }
-        None => reply
+  let mut conn = self.conn_for(addr)
+  let mut asking = false
+  for _ in 0..<=self.limit {
+    let reply = if asking {
+      conn.execute_all([[b"ASKING"], args])[1]
+    } else {
+      conn.execute(args)
+    }
+    guard reply is (@resp.Error(msg) | @resp.BulkError(msg)) &&
+      redirect(msg) is Some(next) else {
+      return reply
+    }
+    match next {
+      Moved(slot~, node~) => {
+        self.topology.assign(slot, node)
+        conn = self.conn_for(node)
+        asking = false
       }
-    other => other
+      Ask(node~, ..) => {
+        conn = self.conn_for(node)
+        asking = true
+      }
+    }
   }
+  raise Protocol("more than \{self.limit} redirects for slot \{slot}")
 }
 
 ///|
-/// The connection for `addr`, or a `Connection` error if no node matches.
-fn ClusterClient::conn_for(
+/// The connection for `addr`, opening one through `dial` when the client has not met it.
+async fn ClusterClient::conn_for(
   self : ClusterClient,
   addr : String,
 ) -> &RedisConn raise RedisError {
-  for (a, c) in self.nodes {
-    if a == addr {
-      return c
-    }
+  if self.nodes.get(addr) is Some(conn) {
+    return conn
   }
-  raise Connection("no connection for node " + addr)
+  guard self.dial is Some(dial) else {
+    raise Connection("no connection for node " + addr)
+  }
+  let conn = dial(addr)
+  self.nodes[addr] = conn
+  conn
 }
 
 ///|

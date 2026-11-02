@@ -5,6 +5,8 @@ import {
   "moonbitstack/moonredis",
   "moonbitstack/moonredis/resp",
   "moonbitstack/moonnet/tcp",
+  "moonbitlang/async",
+  "moonbitlang/core/buffer",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/string",
   "moonbitlang/core/double",

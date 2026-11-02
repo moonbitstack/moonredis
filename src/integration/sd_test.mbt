@@ -1,18 +1,6 @@
-// Against the redis CI starts on 6379. Without one these return at the connect, unless
-// `MOONREDIS_LIVE` says a server is expected, so a job that lost its server cannot pass.
-
 ///|
 async fn open() -> @moonredis.Client? {
-  let options = @moonredis.ClientOptions::at("127.0.0.1", 6379)
-  let conn = @socket.Connection::connect(options) catch {
-    _ => {
-      if @env.get_env_var("MOONREDIS_LIVE") is Some(_) {
-        fail("no redis on 6379")
-      }
-      return None
-    }
-  }
-  Some(@moonredis.Client::new(conn))
+  live(6379).map(conn => @moonredis.Client::new(conn))
 }
 
 ///|

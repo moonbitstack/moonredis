@@ -50,16 +50,7 @@ pub async fn Client::zscore(
   key : String,
   m : String,
 ) -> Double? raise RedisError {
-  match
-    expect_bytes(self.command([b"ZSCORE", arg_string(key), arg_string(m)])) {
-    Some(b) =>
-      Some(
-        @string.parse_double(@utf8.decode_lossy(b[:])) catch {
-          _ => raise Protocol("invalid score reply")
-        },
-      )
-    None => None
-  }
+  expect_score(self.command([b"ZSCORE", arg_string(key), arg_string(m)]))
 }
 
 ///|
@@ -74,17 +65,7 @@ pub async fn Client::zmscore(
     args.push(arg_string(m))
   }
   let items = expect_array(self.command(args))
-  items.map(x => {
-    match expect_bytes(x) {
-      Some(b) =>
-        Some(
-          @string.parse_double(@utf8.decode_lossy(b[:])) catch {
-            _ => raise Protocol("invalid score reply")
-          },
-        )
-      None => None
-    }
-  })
+  items.map(expect_score)
 }
 
 ///|
@@ -503,18 +484,31 @@ pub async fn Client::zrandmember(
   self : Client,
   key : String,
   count? : Int32,
-  withscores? : Bool,
-) -> Array[(String, Double)] raise RedisError {
+) -> Array[String] raise RedisError {
   let args : Array[Bytes] = [b"ZRANDMEMBER", arg_string(key)]
   match count {
     Some(n) => args.push(arg_int(n))
     None => ()
   }
-  if withscores.unwrap_or(false) {
-    args.push(b"WITHSCORES")
-  }
-  let items = expect_array(self.command(args))
-  decode_member_scores(items)
+  let items = expect_some(self.command(args))
+  items.map(expect_string_value)
+}
+
+///|
+/// `ZRANDMEMBER key count WITHSCORES`: random members with their scores. A negative `count`
+/// may repeat a member.
+pub async fn Client::zrandmember_scores(
+  self : Client,
+  key : String,
+  count : Int32,
+) -> Array[(String, Double)] raise RedisError {
+  let args : Array[Bytes] = [
+    b"ZRANDMEMBER",
+    arg_string(key),
+    arg_int(count),
+    b"WITHSCORES",
+  ]
+  decode_member_scores(expect_array(self.command(args)))
 }
 
 ///|
@@ -558,11 +552,21 @@ fn expect_index(reply : @resp.RespValue) -> Int64? raise RedisError {
 }
 
 ///|
-/// Decode a flat array of alternating member, score into member/score pairs.
+/// Decode member/score pairs. RESP3 nests a pair for each member; RESP2, and `ZPOPMIN` with no
+/// count under either, alternate them in one flat array.
 fn decode_member_scores(
   items : Array[@resp.RespValue],
 ) -> Array[(String, Double)] raise RedisError {
   let out : Array[(String, Double)] = []
+  if items is [@resp.Array(_), ..] {
+    for item in items {
+      guard item is @resp.Array([name, score]) else {
+        raise Protocol("unexpected member/score pair")
+      }
+      out.push((expect_string_value(name), expect_double(score)))
+    }
+    return out
+  }
   for i = 0; i < items.length(); i = i + 2 {
     let m = @utf8.decode_lossy(expect_bytes(items[i]).unwrap())
     let s = expect_double(items[i + 1])

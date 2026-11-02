@@ -11,6 +11,19 @@
 /// a test double.
 pub(open) trait RedisConn {
   async fn execute(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
+  /// Run several commands and return their replies in order, an error reply being one reply
+  /// among the others. The default takes them one round trip at a time; a socket sends them
+  /// together, which is what makes a pipeline worth having.
+  async fn execute_all(Self, Array[Array[Bytes]]) -> Array[@resp.RespValue] raise RedisError = _
+}
+
+///|
+impl RedisConn with fn execute_all(self, commands) {
+  let replies = []
+  for args in commands {
+    replies.push(self.execute(args))
+  }
+  replies
 }
 
 ///|
@@ -37,7 +50,7 @@ pub fn FakeConn::handler(run : (Array[Bytes]) -> @resp.RespValue) -> FakeConn {
 }
 
 ///|
-pub extend FakeConn with RedisConn::{execute}
+pub extend FakeConn with RedisConn::{execute, execute_all}
 
 ///|
 pub impl RedisConn for FakeConn with fn execute(self, args : Array[Bytes]) -> @resp.RespValue raise RedisError {

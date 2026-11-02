@@ -1,7 +1,6 @@
-// Pipeline and transaction batching. A pipeline queues several commands and runs them
+// Pipeline and transaction batching. A pipeline queues several commands and sends them
 // together, returning their replies in order; in transaction mode it wraps them in
-// `MULTI`/`EXEC` so redis runs them atomically. Both are transport-independent and are
-// tested against the `FakeConn`.
+// `MULTI`/`EXEC` so redis runs them atomically.
 
 ///|
 /// A queued batch of commands against one connection. Add commands with `add`; run them
@@ -32,25 +31,19 @@ pub fn Pipeline::multi(self : Pipeline) -> Unit {
 }
 
 ///|
-/// Run the queued commands. Without `multi` each command is sent and its reply collected
-/// in order; with `multi` they run atomically inside `MULTI`/`EXEC` and the `EXEC` result
-/// array is returned (the intervening `QUEUED` replies are consumed).
+/// Run the queued commands in one round trip. Without `multi` the replies come back in
+/// order, an error reply being one among them. With `multi` they run atomically and the
+/// `EXEC` result comes back: `Aborted` when a watched key changed, `Reply` when redis refused
+/// the batch, as it does for a command it could not queue.
 pub async fn Pipeline::execute(
   self : Pipeline,
 ) -> Array[@resp.RespValue] raise RedisError {
-  if self.transaction {
-    let _ = self.conn.execute([b"MULTI"])
-    for cmd in self.queue {
-      let _ = self.conn.execute(cmd)
-    }
-    let result = self.conn.execute([b"EXEC"])
-    expect_array(result)
-  } else {
-    let out : Array[@resp.RespValue] = []
-    for cmd in self.queue {
-      out.push(self.conn.execute(cmd))
-    }
-    out
+  guard self.transaction else { return self.conn.execute_all(self.queue) }
+  let replies = self.conn.execute_all([[b"MULTI"], ..self.queue, [b"EXEC"]])
+  match replies[replies.length() - 1] {
+    @resp.Null => raise Aborted
+    @resp.Error(msg) | @resp.BulkError(msg) => raise Reply(msg)
+    other => expect_array(other)
   }
 }
 
