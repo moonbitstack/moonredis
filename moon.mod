@@ -1,6 +1,6 @@
 name = "moonbitstack/moonredis"
 
-version = "0.1.1"
+version = "0.1.2"
 
 readme = "README.md"
 
@@ -8,7 +8,24 @@ repository = "https://github.com/moonbitstack/moonredis"
 
 license = "Apache-2.0"
 
-keywords = [ "redis", "resp", "client", "moonbit" ]
+keywords = [
+  "redis",
+  "client",
+  "resp",
+  "resp2",
+  "resp3",
+  "pipeline",
+  "transaction",
+  "pubsub",
+  "pub-sub",
+  "cluster",
+  "redis-cluster",
+  "sentinel",
+  "cache",
+  "key-value",
+  "service-discovery",
+  "moonbit",
+]
 
 description = "A Redis client for MoonBit: RESP2 and RESP3, pipelines, transactions, pub/sub, cluster and sentinel."
 
