@@ -16,6 +16,7 @@ pub(all) suberror RespError {
 /// decode to `Null`, unifying with RESP3's explicit null (`_`). `BulkString` carries
 /// raw bytes (redis values are binary-safe); the text-line types carry the decoded
 /// string.
+#derive(Eq, Debug)
 pub(all) enum RespValue {
   SimpleString(String)
   Error(String)
@@ -31,7 +32,7 @@ pub(all) enum RespValue {
   RespMap(Array[(RespValue, RespValue)])
   RespSet(Array[RespValue])
   Push(Array[RespValue])
-} derive(Eq, Debug)
+}
 
 ///|
 /// A short name for a value's RESP type, for error messages ("unexpected `<kind>`

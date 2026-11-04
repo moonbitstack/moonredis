@@ -8,13 +8,14 @@
 /// Why a redis call failed: a redis error reply, a transport failure, a closed
 /// connection, a reply the client could not interpret as the command promised, or a
 /// transaction a watched key changed under.
+#derive(Eq, Debug)
 pub(all) suberror RedisError {
   Reply(String)
   Connection(String)
   Protocol(String)
   Closed
   Aborted
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend RedisError with Debug::{to_repr}
@@ -35,12 +36,13 @@ pub fn reply_error(reply : @resp.RespValue) -> RedisError {
 
 ///|
 /// Where a cluster node sent a command.
+#derive(Eq, Debug)
 pub(all) enum Redirect {
   /// The slot lives there now, so route it there from here on.
   Moved(slot~ : Int32, node~ : String)
   /// The slot is migrating and this key has gone ahead: ask there this once, after `ASKING`.
   Ask(slot~ : Int32, node~ : String)
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend Redirect with Debug::{to_repr}

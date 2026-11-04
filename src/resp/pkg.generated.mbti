@@ -29,6 +29,7 @@ pub fn RespReader::new(Bytes) -> Self
 pub fn RespReader::read(Self) -> RespValue raise RespError
 pub fn RespReader::rest(Self) -> Bytes
 
+#derive(Eq, @debug.Debug)
 pub(all) enum RespValue {
   SimpleString(String)
   Error(String)
@@ -44,7 +45,7 @@ pub(all) enum RespValue {
   RespMap(Array[(RespValue, RespValue)])
   RespSet(Array[RespValue])
   Push(Array[RespValue])
-} derive(Eq, @debug.Debug)
+}
 pub fn RespValue::decode(Bytes) -> Self raise RespError
 pub fn RespValue::encode(Self) -> Bytes
 pub fn RespValue::encode_into(Self, @buffer.Buffer) -> Unit

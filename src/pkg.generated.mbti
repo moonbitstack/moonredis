@@ -77,13 +77,14 @@ pub fn status_ok(@resp.RespValue) -> Unit raise RedisError
 pub let tracking_default : TrackingOptions
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub(all) suberror RedisError {
   Reply(String)
   Connection(String)
   Protocol(String)
   Closed
   Aborted
-} derive(Eq, @debug.Debug)
+}
 pub fn RedisError::equal(Self, Self) -> Bool
 pub fn RedisError::not_equal(Self, Self) -> Bool
 pub fn RedisError::to_repr(Self) -> @debug.Repr
@@ -394,10 +395,11 @@ pub(all) enum Protocol {
   Resp3
 }
 
+#derive(Eq, @debug.Debug)
 pub(all) enum Redirect {
   Moved(slot~ : Int32, node~ : String)
   Ask(slot~ : Int32, node~ : String)
-} derive(Eq, @debug.Debug)
+}
 pub fn Redirect::equal(Self, Self) -> Bool
 pub fn Redirect::not_equal(Self, Self) -> Bool
 pub fn Redirect::to_repr(Self) -> @debug.Repr
