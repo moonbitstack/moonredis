@@ -136,6 +136,65 @@ that redis uses as a keyword: `type_` for `TYPE` and `move_` for `MOVE`.
 | Script / function | `Script` runs a script by digest and reloads it when the server forgets; `eval`, `evalsha`, `script_load`, `script_exists`, `script_flush`, `function_load`, `function_call`, `function_flush`, `function_delete` |
 | Pub/sub | `publish`, `spublish`, `subscribe`, `unsubscribe`, `psubscribe`, `punsubscribe`, `ssubscribe`, `sunsubscribe` |
 | Server / connection | `ping`, `ping_message`, `echo`, `select`, `auth`, `auth_user`, `info`, `dbsize`, `flushdb`, `flushall`, `swapdb`, `time_`, `lastsave`, `save`, `bgsave`, `bgrewriteaof`, `shutdown`, `config_get`, `config_set`, `config_rewrite`, `config_resetstat`, `client_setname`, `client_getname`, `client_id`, `client_kill`, `command_count`, `slowlog_get`, `slowlog_len`, `slowlog_reset`, `replicaof`, `replicaof_noone` |
+| JSON | `json_set`, `json_mset`, `json_merge`, `json_get`, `json_get_text`, `json_mget`, `json_del`, `json_forget`, `json_type`, `json_numincrby`, `json_nummultby`, `json_strappend`, `json_strlen`, `json_arrlen`, `json_arrindex`, `json_arrappend`, `json_arrinsert`, `json_arrpop`, `json_arrtrim`, `json_objkeys`, `json_objlen`, `json_toggle`, `json_clear`, `json_resp`, `json_debug_memory` |
+| Search | `ft_create`, `ft_alter`, `ft_dropindex`, `ft_list`, `ft_aliasadd`, `ft_aliasupdate`, `ft_aliasdel`, `ft_search`, `ft_aggregate`, `ft_cursor_read`, `ft_cursor_del`, `ft_info`, `ft_explain`, `ft_explaincli`, `ft_profile`, `ft_tagvals`, `ft_spellcheck`, `ft_dictadd`, `ft_dictdel`, `ft_dictdump`, `ft_synupdate`, `ft_syndump`, `ft_sugadd`, `ft_sugget`, `ft_sugget_scored`, `ft_suglen`, `ft_sugdel`, `ft_config_get`, `ft_config_set`, `ft_hybrid` |
+| Time series | `ts_create`, `ts_alter`, `ts_add`, `ts_madd`, `ts_incrby`, `ts_decrby`, `ts_del`, `ts_createrule`, `ts_deleterule`, `ts_range`, `ts_revrange`, `ts_mrange`, `ts_mrevrange`, `ts_get`, `ts_mget`, `ts_read`, `ts_nrange`, `ts_nrevrange`, `ts_info`, `ts_queryindex`, `ts_querylabels`, `ts_querylabel_values` |
+| Bloom and cuckoo filters | `bf_reserve`, `bf_add`, `bf_madd`, `bf_insert`, `bf_exists`, `bf_mexists`, `bf_scandump`, `bf_loadchunk`, `bf_info`, `bf_card`, `cf_reserve`, `cf_add`, `cf_addnx`, `cf_insert`, `cf_insertnx`, `cf_exists`, `cf_mexists`, `cf_del`, `cf_count`, `cf_scandump`, `cf_loadchunk`, `cf_info` |
+| Counting sketches | `cms_initbydim`, `cms_initbyprob`, `cms_incrby`, `cms_query`, `cms_merge`, `cms_info`, `topk_reserve`, `topk_add`, `topk_incrby`, `topk_query`, `topk_count`, `topk_list`, `topk_list_with_count`, `topk_info`, `tdigest_create`, `tdigest_reset`, `tdigest_add`, `tdigest_merge`, `tdigest_min`, `tdigest_max`, `tdigest_quantile`, `tdigest_cdf`, `tdigest_rank`, `tdigest_revrank`, `tdigest_byrank`, `tdigest_byrevrank`, `tdigest_trimmed_mean`, `tdigest_info` |
+
+### Redis 8 modules
+
+Redis 8 serves JSON documents, a search engine, time series and the probabilistic
+structures from the server itself, so one connection covers all of them. The methods keep
+the module's own command name, and replies are decoded into the types the module
+documents: a JSON value is a `Json`, a sample is a `Sample`, and a flag is a `Bool`
+whether the wire wrote `1` or `#t`.
+
+```moonbit
+async fn store_and_read(client : @moonredis.Client) -> Unit raise @moonredis.RedisError {
+  let text = "{\"title\":\"moon\",\"readings\":[1,2,3]}"
+  let document = @json.parse(text) catch {
+    _ => raise @moonredis.Protocol("the document is not JSON")
+  }
+  let _ = client.json_set("doc", "$", document)
+  let grown = client.json_arrappend("doc", "$.readings", [@json.Json::number(4.0)])
+  println(grown[0].unwrap().to_string())          // 4
+  let title = client.json_get_text("doc", path="$.title")
+  println(title.unwrap_or(""))                    // ["moon"]
+}
+```
+
+An index is a `Schema`: the documents it reads, and the fields it indexes. A field carries
+its own options, including a `VectorSpec` for a vector field.
+
+```moonbit
+async fn index_books(client : @moonredis.Client) -> Unit raise @moonredis.RedisError {
+  client.ft_create("books", {
+    ..@moonredis.Schema::new([
+      @moonredis.SchemaField::text("title", sortable=true),
+      @moonredis.SchemaField::numeric("pages", sortable=true),
+      @moonredis.SchemaField::vector("vec", @moonredis.VectorSpec::hnsw(4)),
+    ]),
+    prefixes: ["book:"],
+  })
+  let found = client.ft_search("books", "moon", options={
+    ..@moonredis.search_default,
+    sort_by: Some({ field: "pages", ascending: true }),
+    return_fields: ["title"],
+    limit: 10,
+  })
+  for hit in found.hits {
+    println(hit.id + " " + hit.field("title").unwrap_or(""))
+  }
+}
+```
+
+`ft_search` answers a `SearchResult` — the total, the hits, and any warning — and
+`ft_aggregate` answers rows of named values. Both accept `params`, so a vector or a numeric
+bound can be passed out of band. `ft_info` and the module `*_info` methods answer either a
+typed record (`IndexInfo`, `TsInfo`) or an `Info`, a name-to-value map that reads the same
+under either protocol. `FT.PROFILE` hands back the protocol's own nesting: it is a
+diagnostic, not a value with a shape the client can promise.
 
 ## Pipelines and transactions
 
@@ -200,14 +259,19 @@ immediately; `backoff_delay`/`should_retry` expose the policy.
 | `04-pipeline` | `moon run src/examples/04-pipeline --target native` — one round trip, and a transaction that loses a race. |
 | `05-pubsub` | `moon run src/examples/05-pubsub --target native` — a pattern subscription. |
 | `06-cluster` | `moon run src/examples/06-cluster --target native` — keys routed by slot. |
+| `07-modules` | `moon run src/examples/07-modules --target native` — one command from each Redis 8 module. |
 
 ## Testing
 
 The codec and command surface are tested against `FakeConn` with no network, so they run on
 every backend. `src/integration` runs every command family against a real server under both
 protocols, and covers transactions losing a race, redirects, a slot migrating, a failover and
-a connection killed underneath. `scripts/start_redis.sh` starts what those tests connect to: a
-standalone redis, a six-node cluster, and a master and replica under a sentinel. Without
+a connection killed underneath. The module families are checked command by command, against
+the values the server returns rather than against "it did not raise".
+`scripts/start_redis.sh` starts what those tests connect to: a standalone redis 8, a
+six-node cluster, and a master and replica under a sentinel, all from the `redis:8` image
+when docker is present, since that image carries the JSON, search, time series and
+probabilistic modules. Without
 servers the tests return early; with `MOONREDIS_LIVE` set, as in CI, a missing server fails
 them.
 
