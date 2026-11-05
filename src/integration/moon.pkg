@@ -12,7 +12,13 @@ import {
   "moonbitlang/async",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
+  "moonbitlang/core/json",
   "moonbitlang/core/string",
 } for "test"
 
 supported_targets = "native"
+
+// The module tests share one server, and the search module keeps its indexes in database
+// 0 for the whole server, so they run one at a time.
+
+max_concurrent_tests = 1

@@ -36,12 +36,12 @@ jobs:
           moon version --all
           moon update
 
-      - name: start redis (standalone, cluster, sentinel)
+      # Redis 8 ships the JSON, search, time series and probabilistic modules in the
+      # server, so the official image serves every family the tests exercise.
+      - name: start redis 8 (standalone, cluster, sentinel)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y redis-server redis-tools
-          sudo systemctl stop redis-server || true
+          docker version
           bash scripts/start_redis.sh
           echo "MOONREDIS_LIVE=1" >> "$GITHUB_ENV"
 
