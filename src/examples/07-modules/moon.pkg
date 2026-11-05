@@ -1,0 +1,12 @@
+// A real connection over a socket: dial, then the Redis 8 modules. Native-only; needs a
+// redis 8, which ships the JSON, search, time series and probabilistic modules.
+pkgtype(kind: "executable")
+
+supported_targets = "+native"
+
+import {
+  "moonbitstack/moonredis",
+  "moonbitstack/moonredis/socket",
+  "moonbitlang/async",
+  "moonbitlang/core/json",
+}

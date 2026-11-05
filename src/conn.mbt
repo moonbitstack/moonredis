@@ -35,18 +35,26 @@ pub struct FakeConn {
   queue : Array[@resp.RespValue]
   mut at : Int32
   run : (Array[Bytes]) -> @resp.RespValue
+  sent : Array[Array[Bytes]]
 }
 
 ///|
 /// A fake that returns `replies` in order, then `Null` for every further call.
 pub fn FakeConn::new(replies : Array[@resp.RespValue]) -> FakeConn {
-  { queue: replies, at: 0, run: _ => @resp.Null, }
+  { queue: replies, at: 0, run: _ => @resp.Null, sent: [], }
 }
 
 ///|
 /// A fake that answers every call with `handler`, ignoring any queue.
 pub fn FakeConn::handler(run : (Array[Bytes]) -> @resp.RespValue) -> FakeConn {
-  { queue: [], at: 0, run, }
+  { queue: [], at: 0, run, sent: [], }
+}
+
+///|
+/// Every command the fake was asked to send, in order, so a test can assert the wire form a
+/// typed method builds and not only the reply it decodes.
+pub fn FakeConn::sent(self : FakeConn) -> Array[Array[Bytes]] {
+  self.sent
 }
 
 ///|
@@ -54,6 +62,7 @@ pub extend FakeConn with RedisConn::{execute, execute_all}
 
 ///|
 pub impl RedisConn for FakeConn with fn execute(self, args : Array[Bytes]) -> @resp.RespValue raise RedisError {
+  self.sent.push(args)
   if self.at < self.queue.length() {
     let v = self.queue[self.at]
     self.at += 1

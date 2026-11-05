@@ -3,11 +3,16 @@ package "moonbitstack/moonredis"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
   "moonbitstack/moonredis/resp",
   "moonbitstack/moontls/tls",
 }
 
 // Values
+pub let aggregate_default : AggregateOptions
+
+pub fn aggregate_field(Array[(String, FieldValue)], String) -> FieldValue?
+
 pub fn arg_bytes(Bytes) -> Bytes
 
 pub fn arg_double(Double) -> Bytes
@@ -25,6 +30,8 @@ pub let client_default : ClientOptions
 pub fn crc16(Bytes) -> Int32
 
 pub fn decode_cluster_slots(@resp.RespValue) -> ClusterTopology raise RedisError
+
+pub fn decode_info(@resp.RespValue) -> Info raise RedisError
 
 pub fn expect_array(@resp.RespValue) -> Array[@resp.RespValue] raise RedisError
 
@@ -48,17 +55,37 @@ pub fn expect_string(@resp.RespValue) -> String? raise RedisError
 
 pub fn expect_string_value(@resp.RespValue) -> String raise RedisError
 
+pub fn expect_text(@resp.RespValue) -> String raise RedisError
+
+pub fn expect_text_list(@resp.RespValue) -> Array[String] raise RedisError
+
+pub fn field_value(@resp.RespValue) -> FieldValue
+
 pub fn hash_slot(String) -> Int32
+
+pub let hybrid_default : HybridOptions
+
+pub fn info_scalar(@resp.RespValue) -> InfoValue
 
 pub fn is_cluster_down(String) -> Bool
 
 pub fn is_noscript(String) -> Bool
+
+pub let multi_get_default : MultiGetOptions
+
+pub let multi_range_default : MultiRangeOptions
+
+pub fn numeric_value(@resp.RespValue) -> Double
+
+pub fn path_items(@resp.RespValue) -> Array[@resp.RespValue]
 
 pub let pool_default : PoolOptions
 
 pub fn protocol_version(Protocol) -> Int32
 
 pub fn push_some(Array[Bytes], Bytes, Bytes?) -> Unit
+
+pub let range_default : RangeOptions
 
 pub fn redirect(String) -> Redirect?
 
@@ -69,6 +96,8 @@ pub fn reply_error(@resp.RespValue) -> RedisError
 pub let retry_default : RetryOptions
 
 pub fn same_slot(Array[String]) -> Bool
+
+pub let search_default : SearchOptions
 
 pub fn should_retry(RedisError, Int32, RetryOptions) -> Bool
 
@@ -90,12 +119,45 @@ pub fn RedisError::not_equal(Self, Self) -> Bool
 pub fn RedisError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+pub(all) struct AggregateOptions {
+  verbatim : Bool
+  load : Array[String]
+  group_by : Array[String]
+  reducers : Array[Reducer]
+  apply : Array[(String, String)]
+  sort_by : Array[SortKey]
+  offset : Int64
+  limit : Int64
+  filter : String?
+  params : Array[(String, Bytes)]
+  dialect : Int32?
+  timeout : Int64?
+  cursor_count : Int64?
+  max_idle : Int64?
+}
+
+pub(all) struct AggregateResult {
+  total : Int64
+  rows : Array[Array[(String, FieldValue)]]
+  cursor : Int64?
+}
+
 pub struct Client {
   conn : &RedisConn
 }
 pub async fn Client::append(Self, String, String) -> Int64 raise RedisError
 pub async fn Client::auth(Self, String) -> Unit raise RedisError
 pub async fn Client::auth_user(Self, String, String) -> Unit raise RedisError
+pub async fn Client::bf_add(Self, String, String) -> Bool raise RedisError
+pub async fn Client::bf_card(Self, String) -> Int64 raise RedisError
+pub async fn Client::bf_exists(Self, String, String) -> Bool raise RedisError
+pub async fn Client::bf_info(Self, String) -> Info raise RedisError
+pub async fn Client::bf_insert(Self, String, Array[String], capacity? : Int64, error_rate? : Double, expansion? : Int64, nocreate? : Bool, nonscaling? : Bool) -> Array[Bool] raise RedisError
+pub async fn Client::bf_loadchunk(Self, String, Int64, Bytes) -> Unit raise RedisError
+pub async fn Client::bf_madd(Self, String, Array[String]) -> Array[Bool] raise RedisError
+pub async fn Client::bf_mexists(Self, String, Array[String]) -> Array[Bool] raise RedisError
+pub async fn Client::bf_reserve(Self, String, Double, Int64, expansion? : Int64, nonscaling? : Bool) -> Unit raise RedisError
+pub async fn Client::bf_scandump(Self, String, Int64) -> (Int64, Bytes?) raise RedisError
 pub async fn Client::bgrewriteaof(Self) -> String raise RedisError
 pub async fn Client::bgsave(Self) -> String raise RedisError
 pub async fn Client::bitcount(Self, String, start? : Int32, end? : Int32) -> Int64 raise RedisError
@@ -107,11 +169,29 @@ pub async fn Client::brpop(Self, Array[String], Int32) -> (String, Bytes)? raise
 pub async fn Client::brpoplpush(Self, String, String, Int32) -> Bytes? raise RedisError
 pub async fn Client::bzpopmax(Self, Array[String], Int32) -> (String, String, Double)? raise RedisError
 pub async fn Client::bzpopmin(Self, Array[String], Int32) -> (String, String, Double)? raise RedisError
+pub async fn Client::cf_add(Self, String, String) -> Bool raise RedisError
+pub async fn Client::cf_addnx(Self, String, String) -> Bool raise RedisError
+pub async fn Client::cf_count(Self, String, String) -> Int64 raise RedisError
+pub async fn Client::cf_del(Self, String, String) -> Bool raise RedisError
+pub async fn Client::cf_exists(Self, String, String) -> Bool raise RedisError
+pub async fn Client::cf_info(Self, String) -> Info raise RedisError
+pub async fn Client::cf_insert(Self, String, Array[String], capacity? : Int64, nocreate? : Bool) -> Array[Bool] raise RedisError
+pub async fn Client::cf_insertnx(Self, String, Array[String], capacity? : Int64, nocreate? : Bool) -> Array[Bool] raise RedisError
+pub async fn Client::cf_loadchunk(Self, String, Int64, Bytes) -> Unit raise RedisError
+pub async fn Client::cf_mexists(Self, String, Array[String]) -> Array[Bool] raise RedisError
+pub async fn Client::cf_reserve(Self, String, Int64, bucket_size? : Int64, max_iterations? : Int64, expansion? : Int64) -> Unit raise RedisError
+pub async fn Client::cf_scandump(Self, String, Int64) -> (Int64, Bytes?) raise RedisError
 pub async fn Client::client_getname(Self) -> String? raise RedisError
 pub async fn Client::client_id(Self) -> Int64 raise RedisError
 pub async fn Client::client_kill(Self, Array[String]) -> Int64 raise RedisError
 pub async fn Client::client_setname(Self, String) -> Unit raise RedisError
 pub async fn Client::cluster_slots(Self) -> @resp.RespValue raise RedisError
+pub async fn Client::cms_incrby(Self, String, Array[(String, Int64)]) -> Array[Int64] raise RedisError
+pub async fn Client::cms_info(Self, String) -> Info raise RedisError
+pub async fn Client::cms_initbydim(Self, String, Int64, Int64) -> Unit raise RedisError
+pub async fn Client::cms_initbyprob(Self, String, Double, Double) -> Unit raise RedisError
+pub async fn Client::cms_merge(Self, String, Array[String], weights? : Array[Int64]) -> Unit raise RedisError
+pub async fn Client::cms_query(Self, String, Array[String]) -> Array[Int64] raise RedisError
 pub async fn Client::command(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
 pub async fn Client::command_count(Self) -> Int64 raise RedisError
 pub async fn Client::config_get(Self, String) -> Array[(String, String)] raise RedisError
@@ -133,6 +213,36 @@ pub async fn Client::expire(Self, String, Int64) -> Bool raise RedisError
 pub async fn Client::expireat(Self, String, Int64) -> Bool raise RedisError
 pub async fn Client::flushall(Self, sync? : Bool) -> Unit raise RedisError
 pub async fn Client::flushdb(Self, sync? : Bool) -> Unit raise RedisError
+pub async fn Client::ft_aggregate(Self, String, String, options? : AggregateOptions) -> AggregateResult raise RedisError
+pub async fn Client::ft_aliasadd(Self, String, String) -> Unit raise RedisError
+pub async fn Client::ft_aliasdel(Self, String) -> Unit raise RedisError
+pub async fn Client::ft_aliasupdate(Self, String, String) -> Unit raise RedisError
+pub async fn Client::ft_alter(Self, String, Array[SchemaField], skip_initial_scan? : Bool) -> Unit raise RedisError
+pub async fn Client::ft_config_get(Self, String) -> Array[(String, String)] raise RedisError
+pub async fn Client::ft_config_set(Self, String, String) -> Unit raise RedisError
+pub async fn Client::ft_create(Self, String, Schema) -> Unit raise RedisError
+pub async fn Client::ft_cursor_del(Self, String, Int64) -> Unit raise RedisError
+pub async fn Client::ft_cursor_read(Self, String, Int64, count? : Int64) -> AggregateResult raise RedisError
+pub async fn Client::ft_dictadd(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::ft_dictdel(Self, String, Array[String]) -> Int64 raise RedisError
+pub async fn Client::ft_dictdump(Self, String) -> Array[String] raise RedisError
+pub async fn Client::ft_dropindex(Self, String, delete_documents? : Bool) -> Unit raise RedisError
+pub async fn Client::ft_explain(Self, String, String, dialect? : Int32) -> String raise RedisError
+pub async fn Client::ft_explaincli(Self, String, String, dialect? : Int32) -> Array[String] raise RedisError
+pub async fn Client::ft_hybrid(Self, String, String, String, Bytes, options? : HybridOptions) -> SearchResult raise RedisError
+pub async fn Client::ft_info(Self, String) -> IndexInfo raise RedisError
+pub async fn Client::ft_list(Self) -> Array[String] raise RedisError
+pub async fn Client::ft_profile(Self, String, Bool, String, limited? : Bool) -> @resp.RespValue raise RedisError
+pub async fn Client::ft_search(Self, String, String, options? : SearchOptions) -> SearchResult raise RedisError
+pub async fn Client::ft_spellcheck(Self, String, String, distance? : Int32, dialect? : Int32) -> Array[SpellCheckTerm] raise RedisError
+pub async fn Client::ft_sugadd(Self, String, String, Double, increment? : Bool, payload? : String) -> Int64 raise RedisError
+pub async fn Client::ft_sugdel(Self, String, String) -> Bool raise RedisError
+pub async fn Client::ft_sugget(Self, String, String, fuzzy? : Bool, max? : Int64) -> Array[String] raise RedisError
+pub async fn Client::ft_sugget_scored(Self, String, String, fuzzy? : Bool, max? : Int64) -> Array[(String, Double)] raise RedisError
+pub async fn Client::ft_suglen(Self, String) -> Int64 raise RedisError
+pub async fn Client::ft_syndump(Self, String) -> Array[(String, Array[String])] raise RedisError
+pub async fn Client::ft_synupdate(Self, String, String, Array[String], skip_initial_scan? : Bool) -> Unit raise RedisError
+pub async fn Client::ft_tagvals(Self, String, String) -> Array[String] raise RedisError
 pub async fn Client::function_call(Self, String, Array[String], Array[String]) -> @resp.RespValue raise RedisError
 pub async fn Client::function_delete(Self, String) -> Unit raise RedisError
 pub async fn Client::function_flush(Self) -> Unit raise RedisError
@@ -167,6 +277,31 @@ pub async fn Client::hvals(Self, String) -> Array[String] raise RedisError
 pub async fn Client::incr(Self, String) -> Int64 raise RedisError
 pub async fn Client::incrby(Self, String, Int64) -> Int64 raise RedisError
 pub async fn Client::info(Self, section? : String) -> String raise RedisError
+pub async fn Client::json_arrappend(Self, String, String, Array[@json.Json]) -> Array[Int64?] raise RedisError
+pub async fn Client::json_arrindex(Self, String, String, @json.Json, start? : Int64, stop? : Int64) -> Array[Int64?] raise RedisError
+pub async fn Client::json_arrinsert(Self, String, String, Int64, Array[@json.Json]) -> Array[Int64?] raise RedisError
+pub async fn Client::json_arrlen(Self, String, path? : String) -> Array[Int64?] raise RedisError
+pub async fn Client::json_arrpop(Self, String, String, index? : Int64) -> Array[@json.Json?] raise RedisError
+pub async fn Client::json_arrtrim(Self, String, String, Int64, Int64) -> Array[Int64?] raise RedisError
+pub async fn Client::json_clear(Self, String, path? : String) -> Int64 raise RedisError
+pub async fn Client::json_debug_memory(Self, String, path? : String) -> Int64 raise RedisError
+pub async fn Client::json_del(Self, String, path? : String) -> Int64 raise RedisError
+pub async fn Client::json_forget(Self, String, path? : String) -> Int64 raise RedisError
+pub async fn Client::json_get(Self, String, path? : String) -> @json.Json? raise RedisError
+pub async fn Client::json_get_text(Self, String, path? : String, indent? : String, newline? : String, space? : String) -> String? raise RedisError
+pub async fn Client::json_merge(Self, String, String, @json.Json) -> Unit raise RedisError
+pub async fn Client::json_mget(Self, Array[String], String) -> Array[@json.Json?] raise RedisError
+pub async fn Client::json_mset(Self, Array[(String, String, @json.Json)]) -> Unit raise RedisError
+pub async fn Client::json_numincrby(Self, String, String, Double) -> Array[Double?] raise RedisError
+pub async fn Client::json_nummultby(Self, String, String, Double) -> Array[Double?] raise RedisError
+pub async fn Client::json_objkeys(Self, String, path? : String) -> Array[Array[String]?] raise RedisError
+pub async fn Client::json_objlen(Self, String, path? : String) -> Array[Int64?] raise RedisError
+pub async fn Client::json_resp(Self, String, path? : String) -> @resp.RespValue raise RedisError
+pub async fn Client::json_set(Self, String, String, @json.Json, nx? : Bool, xx? : Bool, fpha? : Fpha) -> Bool raise RedisError
+pub async fn Client::json_strappend(Self, String, String, String) -> Array[Int64?] raise RedisError
+pub async fn Client::json_strlen(Self, String, path? : String) -> Array[Int64?] raise RedisError
+pub async fn Client::json_toggle(Self, String, String) -> Array[Bool?] raise RedisError
+pub async fn Client::json_type(Self, String, path? : String) -> Array[String?] raise RedisError
 pub async fn Client::keys(Self, String) -> Array[String] raise RedisError
 pub async fn Client::lastsave(Self) -> Int64 raise RedisError
 pub async fn Client::lindex(Self, String, Int32) -> Bytes? raise RedisError
@@ -253,8 +388,52 @@ pub async fn Client::sunion(Self, Array[String]) -> Array[String] raise RedisErr
 pub async fn Client::sunionstore(Self, String, Array[String]) -> Int64 raise RedisError
 pub async fn Client::sunsubscribe(Self, channels? : Array[String]) -> Unit raise RedisError
 pub async fn Client::swapdb(Self, Int32, Int32) -> Unit raise RedisError
+pub async fn Client::tdigest_add(Self, String, Array[Double]) -> Unit raise RedisError
+pub async fn Client::tdigest_byrank(Self, String, Array[Int64]) -> Array[Double] raise RedisError
+pub async fn Client::tdigest_byrevrank(Self, String, Array[Int64]) -> Array[Double] raise RedisError
+pub async fn Client::tdigest_cdf(Self, String, Array[Double]) -> Array[Double] raise RedisError
+pub async fn Client::tdigest_create(Self, String, compression? : Int64) -> Unit raise RedisError
+pub async fn Client::tdigest_info(Self, String) -> Info raise RedisError
+pub async fn Client::tdigest_max(Self, String) -> Double raise RedisError
+pub async fn Client::tdigest_merge(Self, String, Array[String], compression? : Int64, overwrite? : Bool) -> Unit raise RedisError
+pub async fn Client::tdigest_min(Self, String) -> Double raise RedisError
+pub async fn Client::tdigest_quantile(Self, String, Array[Double]) -> Array[Double] raise RedisError
+pub async fn Client::tdigest_rank(Self, String, Array[Double]) -> Array[Int64] raise RedisError
+pub async fn Client::tdigest_reset(Self, String) -> Unit raise RedisError
+pub async fn Client::tdigest_revrank(Self, String, Array[Double]) -> Array[Int64] raise RedisError
+pub async fn Client::tdigest_trimmed_mean(Self, String, Double, Double) -> Double raise RedisError
 pub async fn Client::time_(Self) -> (Int64, Int64) raise RedisError
+pub async fn Client::topk_add(Self, String, Array[String]) -> Array[String?] raise RedisError
+pub async fn Client::topk_count(Self, String, Array[String]) -> Array[Int64] raise RedisError
+pub async fn Client::topk_incrby(Self, String, Array[(String, Int64)]) -> Array[String?] raise RedisError
+pub async fn Client::topk_info(Self, String) -> Info raise RedisError
+pub async fn Client::topk_list(Self, String) -> Array[String] raise RedisError
+pub async fn Client::topk_list_with_count(Self, String) -> Array[(String, Int64)] raise RedisError
+pub async fn Client::topk_query(Self, String, Array[String]) -> Array[Bool] raise RedisError
+pub async fn Client::topk_reserve(Self, String, Int64, width? : Int64, depth? : Int64, decay? : Double) -> Unit raise RedisError
 pub async fn Client::touch(Self, Array[String]) -> Int64 raise RedisError
+pub async fn Client::ts_add(Self, String, Int64, Double, retention? : Int64, uncompressed? : Bool, chunk_size? : Int64, on_duplicate? : String, labels? : Array[(String, String)]) -> Int64 raise RedisError
+pub async fn Client::ts_alter(Self, String, retention? : Int64, chunk_size? : Int64, duplicate_policy? : String, ignore_max_time_diff? : Int64, ignore_max_val_diff? : Double, labels? : Array[(String, String)]) -> Unit raise RedisError
+pub async fn Client::ts_create(Self, String, retention? : Int64, uncompressed? : Bool, chunk_size? : Int64, duplicate_policy? : String, ignore_max_time_diff? : Int64, ignore_max_val_diff? : Double, labels? : Array[(String, String)]) -> Unit raise RedisError
+pub async fn Client::ts_createrule(Self, String, String, String, Int64, align_timestamp? : Int64) -> Unit raise RedisError
+pub async fn Client::ts_decrby(Self, String, Double, timestamp? : Int64, retention? : Int64, uncompressed? : Bool, chunk_size? : Int64, duplicate_policy? : String, labels? : Array[(String, String)]) -> Int64 raise RedisError
+pub async fn Client::ts_del(Self, String, String, String) -> Int64 raise RedisError
+pub async fn Client::ts_deleterule(Self, String, String) -> Unit raise RedisError
+pub async fn Client::ts_get(Self, String, latest? : Bool) -> Sample? raise RedisError
+pub async fn Client::ts_incrby(Self, String, Double, timestamp? : Int64, retention? : Int64, uncompressed? : Bool, chunk_size? : Int64, duplicate_policy? : String, labels? : Array[(String, String)]) -> Int64 raise RedisError
+pub async fn Client::ts_info(Self, String) -> TsInfo raise RedisError
+pub async fn Client::ts_madd(Self, Array[(String, Int64, Double)]) -> Array[Int64?] raise RedisError
+pub async fn Client::ts_mget(Self, Array[String], options? : MultiGetOptions) -> Array[Series] raise RedisError
+pub async fn Client::ts_mrange(Self, TimeBound, TimeBound, Array[String], options? : MultiRangeOptions) -> Array[Series] raise RedisError
+pub async fn Client::ts_mrevrange(Self, TimeBound, TimeBound, Array[String], options? : MultiRangeOptions) -> Array[Series] raise RedisError
+pub async fn Client::ts_nrange(Self, Array[String], TimeBound, TimeBound, options? : RangeOptions) -> Array[PivotRow] raise RedisError
+pub async fn Client::ts_nrevrange(Self, Array[String], TimeBound, TimeBound, options? : RangeOptions) -> Array[PivotRow] raise RedisError
+pub async fn Client::ts_queryindex(Self, Array[String]) -> Array[String] raise RedisError
+pub async fn Client::ts_querylabel_values(Self, String, filters? : Array[String]) -> Array[String] raise RedisError
+pub async fn Client::ts_querylabels(Self, filters? : Array[String]) -> Array[String] raise RedisError
+pub async fn Client::ts_range(Self, String, TimeBound, TimeBound, options? : RangeOptions) -> Array[Sample] raise RedisError
+pub async fn Client::ts_read(Self, String, Int64, block? : (Int64, Int64), max_count? : Int64) -> Array[Sample] raise RedisError
+pub async fn Client::ts_revrange(Self, String, TimeBound, TimeBound, options? : RangeOptions) -> Array[Sample] raise RedisError
 pub async fn Client::ttl(Self, String) -> Int64 raise RedisError
 pub async fn Client::type_(Self, String) -> String raise RedisError
 pub async fn Client::unlink(Self, Array[String]) -> Int64 raise RedisError
@@ -345,16 +524,137 @@ pub fn ClusterTopology::assign(Self, Int32, String) -> Unit
 pub fn ClusterTopology::new(Array[ClusterSlot]) -> Self
 pub fn ClusterTopology::node_for_slot(Self, Int32) -> String?
 
+pub(all) struct CompactionRule {
+  destination : String
+  bucket : Int64
+  aggregator : String
+}
+
 pub struct FakeConn {
   queue : Array[@resp.RespValue]
   mut at : Int32
   run : (Array[Bytes]) -> @resp.RespValue
+  sent : Array[Array[Bytes]]
 }
 pub async fn FakeConn::execute(Self, Array[Bytes]) -> @resp.RespValue raise RedisError
 pub async fn FakeConn::execute_all(Self, Array[Array[Bytes]]) -> Array[@resp.RespValue] raise RedisError
 pub fn FakeConn::handler((Array[Bytes]) -> @resp.RespValue) -> Self
 pub fn FakeConn::new(Array[@resp.RespValue]) -> Self
+pub fn FakeConn::sent(Self) -> Array[Array[Bytes]]
 pub impl RedisConn for FakeConn
+
+#derive(Eq, @debug.Debug)
+pub(all) enum FieldValue {
+  Text(String)
+  Integer(Int64)
+  Number(Double)
+  Null
+}
+pub fn FieldValue::double(Self) -> Double?
+pub fn FieldValue::equal(Self, Self) -> Bool
+pub fn FieldValue::int(Self) -> Int64?
+pub fn FieldValue::not_equal(Self, Self) -> Bool
+pub fn FieldValue::text(Self) -> String?
+pub fn FieldValue::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum Fpha {
+  Bf16
+  Fp16
+  Fp32
+  Fp64
+}
+pub fn Fpha::equal(Self, Self) -> Bool
+pub fn Fpha::not_equal(Self, Self) -> Bool
+pub fn Fpha::text(Self) -> String
+pub fn Fpha::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum Fusion {
+  Rrf
+  Linear
+}
+pub fn Fusion::equal(Self, Self) -> Bool
+pub fn Fusion::not_equal(Self, Self) -> Bool
+pub fn Fusion::to_repr(Self) -> @debug.Repr
+
+pub(all) struct GeoFilter {
+  field : String
+  longitude : Double
+  latitude : Double
+  radius : Double
+  unit : String
+}
+
+pub(all) struct HybridOptions {
+  knn : Int64
+  ef_runtime : Int64?
+  radius : (Double, Double)?
+  fusion : Fusion?
+  fusion_params : (Double, Double)?
+  load : Array[String]
+  sort_by : SortKey?
+  offset : Int64
+  limit : Int64
+  filter : String?
+  params : Array[(String, Bytes)]
+  timeout : Int64?
+}
+
+pub(all) struct IndexField {
+  identifier : String
+  attribute : String
+  type_ : String
+  sortable : Bool
+  unf : Bool
+  noindex : Bool
+  weight : Double
+}
+
+pub(all) struct IndexInfo {
+  name : String
+  key_type : String
+  prefixes : Array[String]
+  filter : String?
+  default_score : Double
+  num_docs : Int64
+  max_doc_id : Int64
+  num_terms : Int64
+  num_records : Int64
+  indexing : Bool
+  percent_indexed : Double
+  indexing_failures : Int64
+  attributes : Array[IndexField]
+}
+
+#derive(Eq, @debug.Debug)
+pub(all) enum IndexKind {
+  Hash
+  Json
+}
+pub fn IndexKind::equal(Self, Self) -> Bool
+pub fn IndexKind::not_equal(Self, Self) -> Bool
+pub fn IndexKind::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Info {
+  items : Map[String, InfoValue]
+}
+pub fn Info::double(Self, String) -> Double?
+pub fn Info::flag(Self, String) -> Bool?
+pub fn Info::get(Self, String) -> InfoValue
+pub fn Info::int(Self, String) -> Int64?
+pub fn Info::text(Self, String) -> String?
+
+#derive(Eq, @debug.Debug)
+pub(all) enum InfoValue {
+  Text(String)
+  Number(Double)
+  Flag(Bool)
+  Missing
+}
+pub fn InfoValue::equal(Self, Self) -> Bool
+pub fn InfoValue::not_equal(Self, Self) -> Bool
+pub fn InfoValue::to_repr(Self) -> @debug.Repr
 
 pub struct Message {
   kind : String
@@ -364,6 +664,27 @@ pub struct Message {
   count : Int64
 }
 pub fn Message::parse(@resp.RespValue) -> Self?
+
+pub(all) struct MultiGetOptions {
+  with_labels : Bool
+  select_labels : Array[String]
+  latest : Bool
+}
+
+pub(all) struct MultiRangeOptions {
+  range : RangeOptions
+  with_labels : Bool
+  select_labels : Array[String]
+  group_by : String?
+  reduce : String?
+  exclude_empty : Bool
+}
+
+pub(all) struct NumericFilter {
+  field : String
+  min : String
+  max : String
+}
 
 pub struct PendingSummary {
   count : Int64
@@ -382,6 +703,11 @@ pub async fn Pipeline::execute(Self) -> Array[@resp.RespValue] raise RedisError
 pub fn Pipeline::multi(Self) -> Unit
 pub fn Pipeline::new(&RedisConn) -> Self
 
+pub(all) struct PivotRow {
+  timestamp : Int64
+  values : Array[Double?]
+}
+
 pub(all) struct PoolOptions {
   max_idle : Int32
   max_active : Int32
@@ -395,6 +721,18 @@ pub(all) enum Protocol {
   Resp3
 }
 
+pub(all) struct RangeOptions {
+  latest : Bool
+  filter_by_ts : Array[Int64]
+  filter_by_value : (Double, Double)?
+  count : Int64
+  aggregation : String?
+  bucket : Int64
+  align : String?
+  bucket_timestamp : String?
+  empty : Bool
+}
+
 #derive(Eq, @debug.Debug)
 pub(all) enum Redirect {
   Moved(slot~ : Int32, node~ : String)
@@ -403,6 +741,12 @@ pub(all) enum Redirect {
 pub fn Redirect::equal(Self, Self) -> Bool
 pub fn Redirect::not_equal(Self, Self) -> Bool
 pub fn Redirect::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Reducer {
+  function : String
+  args : Array[String]
+  as_ : String?
+}
 
 pub struct RetryConn {
   mut inner : &RedisConn
@@ -423,6 +767,64 @@ pub(all) struct RetryOptions {
   jitter : Bool
 }
 
+#derive(Eq, @debug.Debug)
+pub(all) struct Sample {
+  timestamp : Int64
+  value : Double
+}
+pub fn Sample::equal(Self, Self) -> Bool
+pub fn Sample::not_equal(Self, Self) -> Bool
+pub fn Sample::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Schema {
+  on : IndexKind
+  prefixes : Array[String]
+  filter : String?
+  language : String?
+  language_field : String?
+  score : Double?
+  score_field : String?
+  temporary : Int64?
+  stopwords : Array[String]?
+  fields : Array[SchemaField]
+}
+pub fn Schema::new(Array[SchemaField]) -> Self
+
+pub(all) struct SchemaField {
+  name : String
+  kind : SchemaKind
+  as_ : String?
+  sortable : Bool
+  unf : Bool
+  noindex : Bool
+  weight : Double?
+  separator : String?
+  case_sensitive : Bool
+  phonetic : String?
+  no_stem : Bool
+  with_suffix_trie : Bool
+  index_empty : Bool
+  index_missing : Bool
+  vector : VectorSpec?
+}
+pub fn SchemaField::geo(String, as_? : String, sortable? : Bool, unf? : Bool, noindex? : Bool, index_empty? : Bool, index_missing? : Bool) -> Self
+pub fn SchemaField::numeric(String, as_? : String, sortable? : Bool, unf? : Bool, noindex? : Bool, index_empty? : Bool, index_missing? : Bool) -> Self
+pub fn SchemaField::tag(String, as_? : String, separator? : String, case_sensitive? : Bool, sortable? : Bool, unf? : Bool, noindex? : Bool, with_suffix_trie? : Bool, index_empty? : Bool, index_missing? : Bool) -> Self
+pub fn SchemaField::text(String, as_? : String, sortable? : Bool, unf? : Bool, noindex? : Bool, weight? : Double, phonetic? : String, no_stem? : Bool, with_suffix_trie? : Bool, index_empty? : Bool, index_missing? : Bool) -> Self
+pub fn SchemaField::vector(String, VectorSpec, as_? : String, sortable? : Bool, noindex? : Bool) -> Self
+
+#derive(Eq, @debug.Debug)
+pub(all) enum SchemaKind {
+  Text
+  Tag
+  Numeric
+  Geo
+  Vector
+}
+pub fn SchemaKind::equal(Self, Self) -> Bool
+pub fn SchemaKind::not_equal(Self, Self) -> Bool
+pub fn SchemaKind::to_repr(Self) -> @debug.Repr
+
 pub struct Script {
   source : String
   // private fields
@@ -430,16 +832,90 @@ pub struct Script {
 pub fn Script::new(String) -> Self
 pub async fn Script::run(Self, Client, Array[String], Array[String]) -> @resp.RespValue raise RedisError
 
+pub(all) struct SearchHit {
+  id : String
+  fields : Array[(String, @resp.RespValue)]
+  score : Double?
+  payload : Bytes?
+  sort_key : String?
+}
+pub fn SearchHit::field(Self, String) -> String?
+
+pub(all) struct SearchOptions {
+  nocontent : Bool
+  verbatim : Bool
+  with_scores : Bool
+  with_payloads : Bool
+  with_sort_keys : Bool
+  return_fields : Array[String]
+  highlight : Array[String]
+  summarize : Summarize?
+  sort_by : SortKey?
+  offset : Int64
+  limit : Int64
+  dialect : Int32?
+  params : Array[(String, Bytes)]
+  timeout : Int64?
+  in_keys : Array[String]
+  in_fields : Array[String]
+  filter : NumericFilter?
+  geo_filter : GeoFilter?
+  scorer : String?
+  slop : Int64?
+  language : String?
+  explain_score : Bool
+}
+
+pub(all) struct SearchResult {
+  total : Int64
+  hits : Array[SearchHit]
+  warnings : Array[String]
+}
+
 pub struct SentinelClient {
   sentinels : Array[&RedisConn]
 }
 pub fn SentinelClient::new(Array[&RedisConn]) -> Self
 pub async fn SentinelClient::resolve(Self, String) -> String raise RedisError
 
+pub(all) struct Series {
+  key : String
+  labels : Array[(String, String)]
+  samples : Array[Sample]
+}
+
+pub(all) struct SortKey {
+  field : String
+  ascending : Bool
+}
+
+pub(all) struct SpellCheckTerm {
+  term : String
+  suggestions : Array[(Double, String)]
+}
+
 pub struct StreamEntry {
   id : String
   fields : Array[(String, String)]
 }
+
+pub(all) struct Summarize {
+  fields : Array[String]
+  fragments : Int64?
+  length : Int64?
+  separator : String?
+}
+
+#derive(Eq, @debug.Debug)
+pub(all) enum TimeBound {
+  Min
+  Max
+  At(Int64)
+}
+pub fn TimeBound::equal(Self, Self) -> Bool
+pub fn TimeBound::not_equal(Self, Self) -> Bool
+pub fn TimeBound::text(Self) -> String
+pub fn TimeBound::to_repr(Self) -> @debug.Repr
 
 pub(all) struct TrackingOptions {
   enabled : Bool
@@ -449,6 +925,47 @@ pub(all) struct TrackingOptions {
   noloop : Bool
   redirect : Int64?
 }
+
+pub(all) struct TsInfo {
+  total_samples : Int64
+  memory_usage : Int64
+  first_timestamp : Int64
+  last_timestamp : Int64
+  retention_millis : Int64
+  chunk_count : Int64
+  chunk_size : Int64
+  chunk_type : String
+  duplicate_policy : String
+  labels : Array[(String, String)]
+  source_key : String?
+  rules : Array[CompactionRule]
+  ignore_max_time_diff : Int64
+  ignore_max_val_diff : Double
+}
+
+#derive(Eq, @debug.Debug)
+pub(all) enum VectorAlgorithm {
+  Flat
+  Hnsw
+}
+pub fn VectorAlgorithm::equal(Self, Self) -> Bool
+pub fn VectorAlgorithm::not_equal(Self, Self) -> Bool
+pub fn VectorAlgorithm::to_repr(Self) -> @debug.Repr
+
+pub(all) struct VectorSpec {
+  algorithm : VectorAlgorithm
+  dim : Int32
+  element : String
+  distance : String
+  initial_cap : Int64?
+  block_size : Int64?
+  m : Int64?
+  ef_construction : Int64?
+  ef_runtime : Int64?
+  epsilon : Double?
+}
+pub fn VectorSpec::flat(Int32, element? : String, distance? : String, initial_cap? : Int64, block_size? : Int64) -> Self
+pub fn VectorSpec::hnsw(Int32, element? : String, distance? : String, initial_cap? : Int64, m? : Int64, ef_construction? : Int64, ef_runtime? : Int64, epsilon? : Double) -> Self
 
 // Type aliases
 

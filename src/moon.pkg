@@ -8,7 +8,9 @@
 import {
   "moonbitstack/moonredis/resp",
   "moonbitstack/moontls/tls",
+  "moonbitlang/core/double",
   "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
   "moonbitlang/core/string",
 }
 

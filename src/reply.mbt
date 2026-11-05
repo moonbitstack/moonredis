@@ -48,10 +48,12 @@ pub fn expect_some(
 }
 
 ///|
-/// A reply as a `Bool`: the `1`/`0` redis uses for existence, success and comparison.
+/// A reply as a `Bool`: the `1`/`0` redis uses for existence, success and comparison, or
+/// the boolean RESP3 sends for the same answer.
 pub fn expect_bool(reply : @resp.RespValue) -> Bool raise RedisError {
   match reply {
     @resp.Integer(n) => n != 0
+    @resp.Boolean(b) => b
     other =>
       raise Protocol("expected integer 0/1, got " + @resp.resp_kind(other))
   }
