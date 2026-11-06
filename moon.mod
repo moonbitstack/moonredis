@@ -1,6 +1,6 @@
 name = "moonbitstack/moonredis"
 
-version = "0.1.3"
+version = "0.1.4"
 
 readme = "README.md"
 
@@ -46,7 +46,7 @@ source = "src"
 
 import {
   "moonbitstack/moonsd@0.1.1",
-  "moonbitstack/moonnet@0.1.9",
-  "moonbitstack/moontls@0.9.14",
+  "moonbitstack/moonnet@0.1.11",
+  "moonbitstack/moontls@0.9.15",
   "moonbitlang/async@0.22.5",
 }
