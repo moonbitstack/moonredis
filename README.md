@@ -18,7 +18,7 @@ package; the socket transport is `moonredis/socket`.
 
 ## Quick start
 
-```moonbit
+```mbt native
 async fn main {
   let options = @moonredis.ClientOptions::at("127.0.0.1", 6379)
   let conn = @socket.Connection::connect(options) catch {
@@ -56,7 +56,7 @@ asked. A `Client` wraps any `RedisConn`; `FakeConn` is an in-memory one for test
 |:--|:--|
 | `ClientOptions` | Endpoint, credentials, protocol, timeouts, and the pool/retry/tracking policies. |
 | `ClientOptions::at(host, port)` | Options at an address over the standard defaults. |
-| `ClientOptions::with_auth(user?, password?)`, `with_db(db)` | Copies with auth or database set. |
+| `ClientOptions::with_auth(username, password)`, `with_db(db)` | Copies with auth or database set. |
 | `client_default`, `pool_default`, `retry_default`, `tracking_default` | The market-standard presets. |
 | `Protocol` | `Resp2` or `Resp3` (the default). |
 | `PoolOptions` | `max_idle`, `max_active`, `min_idle`, `idle_timeout`, `health_check`. |
@@ -199,10 +199,13 @@ diagnostic, not a value with a shape the client can promise.
 ## Pipelines and transactions
 
 ```moonbit
-let pipeline = @moonredis.Pipeline::new(conn)
-pipeline.add([b"SET", b"a", b"1"])
-pipeline.add([b"INCR", b"a"])
-let replies = pipeline.execute()   // [OK, 2]
+async fn counter(conn : &@moonredis.RedisConn) -> Unit raise @moonredis.RedisError {
+  let pipeline = @moonredis.Pipeline::new(conn)
+  pipeline.add([b"SET", b"a", b"1"])
+  pipeline.add([b"INCR", b"a"])
+  let replies = pipeline.execute() // [OK, 2]
+  println(replies.length())
+}
 ```
 
 Call `pipeline.multi()` before `execute` to wrap the queued commands in `MULTI`/`EXEC`, so
@@ -212,12 +215,17 @@ nothing ran. An error reply inside a plain pipeline is one reply among the other
 
 ## Pub/sub
 
-```moonbit
-let sub = @socket.Subscription::subscribe(conn, ["news"])
-let _ = publisher.publish("news", "hello")
-match sub.next() {
-  Some(message) => println(message.channel + ": " + @utf8.decode_lossy(message.payload[:]))
-  None => ()
+```mbt native
+async fn listen(
+  conn : @socket.Connection,
+  publisher : @moonredis.Client,
+) -> Unit raise @moonredis.RedisError {
+  let sub = @socket.Subscription::subscribe(conn, ["news"])
+  let _ = publisher.publish("news", "hello")
+  match sub.next() {
+    Some(message) => println(message.channel + ": " + @utf8.decode_lossy(message.payload[:]))
+    None => ()
+  }
 }
 ```
 
@@ -235,10 +243,15 @@ turn.
 
 `moonredis/sd` implements the `moonsd` contract on Redis. An endpoint is a key that expires, so an instance that stops renewing leaves by itself. Redis reports expiry only on a best-effort channel, so a watcher reads the service again every `poll` milliseconds.
 
-```moonbit
-let registry = @sd.Registry::new(client)
-group.spawn_bg(() => @moonsd.hold(registry, "greeter", @moonsd.Endpoint::new("10.0.0.1", 12000)))
-let endpoints = registry.resolve("greeter")
+```mbt native
+async fn serve_and_find(client : @moonredis.Client) -> Unit raise {
+  let registry = @sd.Registry::new(client)
+  @async.with_task_group(group => {
+    group.spawn_bg(() => @moonsd.hold(registry, "greeter", @moonsd.Endpoint::new("10.0.0.1", 12000)))
+    let endpoints = registry.resolve("greeter")
+    println(endpoints.length())
+  })
+}
 ```
 
 `Registry::new` takes `prefix`, default `moonsd`, and `poll`, default 1000. Any number of tasks may share one registry. Give it a client of its own: its lock orders its own commands, not those of anything else on that connection. A service's keys share a hash tag, so they stay in one cluster slot.
